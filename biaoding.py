@@ -8,59 +8,67 @@ import PIL.ImageTk as pilImgTk
 from tkinter.filedialog import *
 import tkinter.ttk as ttk
 import tkinter as tk
+import ctypes
 
-CAR_CALIBRATION = 1
-AXEL_CALIBRATION = 2
-RAIL_CALIBRATION = 3
-WHEEL_CALIBRATION = 4
-OUTLINE_CALIBRATION = 5
-OUTLINE_CALIBRATION2 = 6
+class const:
+    CAR_CALIBRATION = 1
+    AXEL_CALIBRATION = 2
+    RAIL_CALIBRATION = 3
+    WHEEL_CALIBRATION = 4
+    OUTLINE_CALIBRATION = 5
+    OUTLINE_CALIBRATION2 = 6
 
-CAR_CALIBRATION_READ = 11
-CAR_CALIBRATION_WRITE = 12
+    CAR_CALIBRATION_READ = 11
+    CAR_CALIBRATION_WRITE = 12
 
-HANDLECOORDS_MODE_CALIBRATION_READ = 11
-HANDLECOORDS_MODE_CALIBRATION_WRITE = 12
-HANDLECOORDS_MODE_ORIGIN_IMAGE_OFFSET = 13
-HANDLECOORDS_MODE_ORIGIN_IMAGE_SAVE = 14
-HANDLECOORDS_MODE_ORIGIN_IMAGE_SHOW = 15
+    HANDLECOORDS_MODE_CALIBRATION_READ = 11
+    HANDLECOORDS_MODE_CALIBRATION_WRITE = 12
+    HANDLECOORDS_MODE_ORIGIN_IMAGE_OFFSET = 13
+    HANDLECOORDS_MODE_ORIGIN_IMAGE_SAVE = 14
+    HANDLECOORDS_MODE_ORIGIN_IMAGE_SHOW = 15
 
-DISPLAY_MODE_ZOOM = 21
-DISPLAY_MODE_ORIGIN = 22
+    DISPLAY_MODE_ZOOM = 21
+    DISPLAY_MODE_ORIGIN = 22
 
+    DATA_TYPE_Z = 31
+    DATA_TYPE_G = 32
+    DATA_TYPE_T = 33
+class util:
+    @staticmethod
+    def _expand_tree(tr, root=None):
+        iids = tr.get_children(root)
+        for iid in iids:
+            tr.item(iid, open=True)
+            _expand_tree(tr, root=iid)
+    @staticmethod
+    def _gettime(_time=None, _type='socket'):
+        """
+        获取特定格式的日期时间字符串
+        """
+        t = None
+        if _time is None:
+            t = datetime.datetime.now()
+        elif isinstance(_time, datetime.datetime):
+            t = _time
+        else:
+            return None
 
-def _expand_tree(tr, root=None):
-    iids = tr.get_children(root)
-    for iid in iids:
-        tr.item(iid, open=True)
-        _expand_tree(tr, root=iid)
-
-def _gettime(_time=None, _type='socket'):
-    """
-    获取特定格式的日期时间字符串
-    """
-    t = None
-    if _time is None:
-        t = datetime.datetime.now()
-    elif isinstance(_time, datetime.datetime):
-        t = _time
-    else:
-        return None
-
-    if _type == 'socket':
-        return t.strftime("%Y-%m-%d %H:%M:%S")
-    elif _type == 'file':
-        return t.strftime("%Y%m%d")
-    else:
-        return None
-    
+        if _type == 'socket':
+            return t.strftime("%Y-%m-%d %H:%M:%S")
+        elif _type == 'file':
+            return t.strftime("%Y%m%d")
+        else:
+            return None
 class main():
     def __init__(self, _mainobj):
-        self.mainObj = _mainobj
+        self.win = _mainobj
+        user32 = ctypes.windll.LoadLibrary('user32.dll')
+        menu_height = user32.GetSystemMetrics(15)
+        title_height = user32.GetSystemMetrics(4)
+        self.win_size = (self.win.winfo_screenwidth(), self.win.winfo_screenheight()-menu_height-title_height-20)
+        self.win.state('zoomed')
         self.data_init()
         self.ui_init()
-
-        
     def data_init(self, init=True):
         self.currentPic = None
         self.currentPicInfo = list()
@@ -69,15 +77,11 @@ class main():
         self.currentPicIndex = 0
         self.origin_img = None
         self.show_img = None
-        self.showZoomRatio = 0
-        if init is True:
-            self.allPics = list()
+        self.showZoomRatio = 1
         self.showPics = list()
         self.picGroups = None
         self.calibrationFile = None
-        self.drawMode = 1
-        self.showSize = (900, 600)  # ui尺寸
-        # self.showSize = (self.mainObj.winfo_screenwidth, self.mainObj.winfo_screenheight)  # ui尺寸
+        self.drawMode = const.CAR_CALIBRATION
         self.showoffset = 0, 0
         self.drawObj = None
         self.dirname = None
@@ -92,10 +96,8 @@ class main():
         self.oldCalibrationInfo = list()
         self.groupByCalibration = dict()
         # self.fetchobjs = list()
-        self.history = {'CAR': [], 'AXEL': [], 'WHEEL': [], 'RAIL': [], 'OUTLINE': [], 'OUTLINE_MIDDLE': []}
+        self.history = {'CAR': [], 'AXEL': [], 'WHEEL': [], 'RAIL': [], 'OUTLINE': [], 'OUTLINE_MIDDLE': [], 'POINT':[]}
         self.searchByGroup = dict()
-        if init is False:
-            self.clearAllCanvas()
         self.coords = list()
         self.CAR_ID = list()
         self.WHEEL_ID = list()
@@ -105,121 +107,146 @@ class main():
         self.TEXT_ID = list()
         self.OUTLINE_ID = list()
         self.OUTLINE_MIDDLE_ID = list()
+        self.POINT_ID = list()
         self.backupShowPics = None
-        self.display_mode = DISPLAY_MODE_ZOOM
+        self.display_mode = const.DISPLAY_MODE_ZOOM
         self.CONSULT_ID = list()
-        self.CTRL_ENABLE = False
+        self.CTRL = False
         self.isAutoCalibration = True
         self.isPicsReady = False
         self.isCalibrationFileReady = False
-        self.isZ = False
-        self.isT = False
-        self.isG = False
+        self.current_zoom_ratio = 1
+        self.FULL_SCREEN = False
 
+        if init:
+            self.allPics = list()
+        else:
+            self.clearAllCanvas()
+
+
+    def check_data_type(self, _file_name):
+        self.isG = self.isZ = self.isT = False
+        if '_ZL' in _file_name or '_ZR' in _file_name:
+            self.isZ = True
+        elif _file_name[0] == 'T':
+            self.isT = True
+        else:
+            self.isG = True
 
     def ui_init(self):
-        self.canvas = tk.Canvas(self.mainObj, bg='#C7EDCC', width=900, height=600)
+        self.show_size = (self.win_size[0], self.win_size[1]*0.9)
+        self.ctrl_size = (self.win_size[0], self.win_size[1]*0.1)
+
+        self.canvas = tk.Canvas(self.win, bg='#C7EDCC', width=self.show_size[0], height=self.show_size[1])
         self.canvas.place(x=0, y=0)
 
-        self.control_frame = tk.Frame(self.mainObj, width=300, height=600, bg='#C7EDCC')
-        self.control_frame.place(x=901, y=0)
-
-        self.picinfo_frame = tk.Frame(self.mainObj, width=900, height=20)
-        self.picinfo_frame.place(x=0, y=601)
-
-        self.info_frame = tk.Frame(self.mainObj, width=300, height=20)
-        self.info_frame.place(x=901, y=601)
+        self.control_frame = tk.Frame(self.win, width=self.ctrl_size[0], height=self.ctrl_size[1], bg='#C7EDCC')
+        self.control_frame.place(x=0, y=self.show_size[1])
 
         self.btLastPic = tk.Button(self.control_frame, text='上一张', command=self.showLastPic)
         self.btLastPic.config(width=10, height=1)
-        self.btLastPic.place(x=35, y=570)
+        self.btLastPic.pack(side='left')
 
         self.btNextPic = tk.Button(self.control_frame, text='下一张', command=self.showNextPic)
         self.btNextPic.config(width=10, height=1)
-        self.btNextPic.place(x=115, y=570)
+        self.btNextPic.pack(side='left')
 
         self.btMainPic = tk.Button(self.control_frame, text='保存', command=self.save)
         self.btMainPic.config(width=10, height=1)
-        self.btMainPic.place(x=195, y=570)
+        self.btMainPic.pack(side='left')
 
-        self.lbPicInfo = tk.Label(self.picinfo_frame, text='请先加载图片及标定文件')
-        self.lbPicInfo.place(x=0, y=0)
+        # self.check_group_v = IntVar()
+        # c = Checkbutton(self.control_frame, text="开启智能分组", variable=self.check_group_v)
+        # c.var = self.check_group_v
+        # c.pack(side=LEFT)
+        
+        self.lbPicInfo = tk.Label(self.control_frame)
+        self.lbPicInfo.pack(side=LEFT)
 
-        self.lbInfo = tk.Label(self.info_frame, text='', anchor=CENTER, justify=CENTER)
-        self.lbInfo.pack(side=RIGHT)
-
-        rootMenu = tk.Menu(self.mainObj)
+        rootMenu = tk.Menu(self.win)
         sourceMenu = tk.Menu(rootMenu, tearoff=0)
-        sourceMenu.add_command(label='CarPositionInformation.config', command=self.openCalibrationFile)
-        sourceMenu.add_command(label='GQpics', command=self.openPictureFolder)
-        sourceMenu.add_command(label='ZXGQpics', command=self.openZPictureFolder)
-        sourceMenu.add_command(label='Tpics', command=self.openTPictureFolder)
+        sourceMenu.add_command(label='标定文件', command=self.openCalibrationFile)
+        sourceMenu.add_command(label='图片', command=self.openPictureFolder)
+        # sourceMenu.add_command(label='ZXGQpics', command=self.openZPictureFolder)
+        # sourceMenu.add_command(label='Tpics', command=self.openTPictureFolder)
         rootMenu.add_cascade(label='加载', menu=sourceMenu)
 
-        toolMenu = tk.Menu(rootMenu, tearoff=0)
-        toolMenu.add_command(label='标定信息', command=self.showInfo)
-        toolMenu.add_command(label='标定状态', command=self.showStatus)
-        rootMenu.add_cascade(label='查看', menu=toolMenu)
+        # toolMenu = tk.Menu(rootMenu, tearoff=0)
+        # toolMenu.add_command(label='标定信息', command=self.showInfo)
+        # toolMenu.add_command(label='标定状态', command=self.showStatus)
+        # rootMenu.add_cascade(label='查看', menu=toolMenu)
 
-        self.mainObj.config(menu=rootMenu)
+        self.win.config(menu=rootMenu)
         
-        _group_frame = tk.Frame(self.control_frame, width=250, height=300, bg='#C7EDCC')
-        self.trGroup = ttk.Treeview(_group_frame, show='tree', height=25)
-        self.trGroup.pack(side=LEFT)
-        self.trGroup.bind('<<TreeviewSelect>>', self.eTreeButton_1)
-        trGroup_vbar = tk.Scrollbar(_group_frame, orient=VERTICAL, command=self.trGroup.yview)
-        self.trGroup.configure(yscrollcommand=trGroup_vbar.set)
-        trGroup_vbar.pack(side=RIGHT, fill=Y)
-        _group_frame.place(x=40, y=25)
+        # _group_frame = tk.Frame(self.control_frame, width=250, height=300, bg='#C7EDCC')
+        # self.trGroup = ttk.Treeview(_group_frame, show='tree', height=25)
+        # self.trGroup.pack(side=LEFT)
+        # self.trGroup.bind('<<TreeviewSelect>>', self.eTreeButton_1)
+        # trGroup_vbar = tk.Scrollbar(_group_frame, orient=VERTICAL, command=self.trGroup.yview)
+        # self.trGroup.configure(yscrollcommand=trGroup_vbar.set)
+        # trGroup_vbar.pack(side=RIGHT, fill=Y)
+        # _group_frame.place(x=40, y=25)
         
         self.setEventBinding(mode=self.display_mode)
-        self.updateStatusInfo()
+        # self.updateStatusInfo()
     
     def updateStatusInfo(self):
         _picReady = '已加载' if self.isPicsReady is True else '未加载'
         _calibrationReady = '已加载' if self.isCalibrationFileReady is True else '未加载'
         _autoCalibration = '开' if self.isAutoCalibration is True else '关'
         _info = '标定文件：%s 图片目录：%s 自动标定：%s' % (_calibrationReady, _picReady, _autoCalibration)
-        self.lbInfo.config(text=_info)
-    
-    def setEventBinding(self, mode=DISPLAY_MODE_ORIGIN):
+        # self.lbInfo.config(text=_info)
+
+    def eCanvasMouseWheel(self, event):
+        if event.delta > 0:
+            self.FULL_SCREEN = True
+        else:
+            self.FULL_SCREEN = False
+        self.show()
+
+    def setEventBinding(self, mode=const.DISPLAY_MODE_ORIGIN):
         self.canvas.bind('<Motion>', self.eCanvasMotion)
         self.canvas.bind('<Button-3>', self.eCanvasButton_3)
         self.canvas.bind('<Button-1>', self.eCanvasButton_1)
         self.canvas.bind('<ButtonRelease-1>', self.eCanvasButton_1_release)
-        self.mainObj.bind('<Control-Key>', self.modeChange)
-        if mode == DISPLAY_MODE_ZOOM:
-            # pass
-            self.canvas.bind('<B1-Motion>', self.eCanvasButton_1_move)
-        elif mode == DISPLAY_MODE_ORIGIN:
-            pass
-            # self.canvas.bind('<Control-B1-Motion>', self.drag)
+        self.canvas.bind('<MouseWheel>', self.eCanvasMouseWheel)
+        self.win.bind('<KeyRelease>', self.eKeyRelease)
+        self.win.bind('<Key>', self.eKeyChanged)
+        self.canvas.bind('<B1-Motion>', self.drag)
+        # if mode == DISPLAY_MODE_ZOOM:
+        #     # pass
+        #     self.canvas.bind('<B1-Motion>', self.eCanvasButton_1_move)
+        # elif mode == DISPLAY_MODE_ORIGIN:
+        #     pass
+        #     # self.canvas.bind('<Control-B1-Motion>', self.drag)
 
-    def modeChange(self, event):
-        if event.keysym == 'm':
-            if self.isAutoCalibration == False:
-                self.isAutoCalibration = True
-            else:
-                self.isAutoCalibration = False
-            self.updateStatusInfo()
+    def eKeyRelease(self, event):
+        if event.keycode == 17:
+            self.CTRL = False
+        print(event.keycode)
 
-    # def eKeyRelease(self, event):
-    #     self.CTRL_ENABLE = False
-    
-    # def eKeyPress(self, event):
-    #     if event.keycode == 17:
-    #         self.CTRL_ENABLE = True
+    def eKeyChanged(self, event):
+        # if event.keysym == 'm':
+        #     if self.isAutoCalibration == False:
+        #         self.isAutoCalibration = True
+        #     else:
+        #         self.isAutoCalibration = False
+        #     self.updateStatusInfo()
+        if event.keycode == 17:
+            self.CTRL = True
+        print(event.keycode)
 
     def drag(self, event):
         """
         操作针对全部canvas对象
         """
-        offx = event.x - self.startX
-        offy = event.y - self.startY
-        for obj in self.canvas.find_all():
-            # if self.canvas.type(obj) != 'image':
-            self.bbox_move(offx, offy, specify=obj)
-        self.coords = [(x+offx,y+offy) for x,y in self.coords]
+        if self.CTRL:
+            offx = event.x - self.startX
+            offy = event.y - self.startY
+            for obj in self.canvas.find_all():
+                # if self.canvas.type(obj) != 'image':
+                self.bbox_move(offx, offy, specify=obj)
+            self.coords = [(x+offx,y+offy) for x,y in self.coords]
         self.startX = event.x
         self.startY = event.y
 
@@ -241,7 +268,7 @@ class main():
         def getLineName(name):
             return '202.202.202.%s' % (str(int(name)+1),)
         
-        top = tk.Toplevel(self.mainObj, width=420, height=500)
+        top = tk.Toplevel(self.win, width=420, height=500)
         top.title('标定信息')
         _side_frame = tk.Frame(top, width=420, height=30)
         _info_frame = tk.Frame(top, width=420, height=570)
@@ -282,17 +309,16 @@ class main():
         tree.configure(yscrollcommand=trinfo.set)
         trinfo.pack(side=RIGHT, fill=Y)
         def _close():
-            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=_gettime(_type='file'))
+            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util._gettime(_type='file'))
             top.destroy()
         btnClose = Button(top, text='确定', command=_close, width=10)
         btnClose.place(x=230, y=465)
-        
     def showStatus(self):
         if self.calibrationHelper is None: return
         def _getLineName(name):
             return '202.202.202.%s' % (str(int(name)+1),)
         
-        top = Toplevel(self.mainObj, width=420, height=500)
+        top = Toplevel(self.win, width=420, height=500)
         top.title('车型状态')
         _side_frame = Frame(top, width=420, height=30)
         _info_frame = Frame(top, width=420, height=570)
@@ -335,13 +361,10 @@ class main():
         tree.configure(yscrollcommand=trinfo.set)
         trinfo.pack(side=RIGHT, fill=Y)
         def _close():
-            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=_gettime(_type='file'))
+            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util._gettime(_type='file'))
             top.destroy()
         btnClose = Button(top, text='确定', command=_close, width=10)
         btnClose.place(x=230, y=465)
-
-
-        
     def eKey(self, event):
         pass
         # print(event.keycode)
@@ -368,12 +391,11 @@ class main():
         #         self.show()
         #         self.updateInfo()
         #         self.setToMainPic()
-        
     def stats(self, mode='status'):
         def _filter(x):
             return x is not None
         _stats = dict()
-        today_date = _gettime(_type='file')
+        today_date = util._gettime(_type='file')
         if self.calibrationHelper is None: return
         _keys = set([x.split('_')[0] for x in self.calibrationHelper.dictPhototype.keys()])
         kinds = dict()
@@ -418,7 +440,6 @@ class main():
                     _return[line].append(_tmp)
             # print(_return)
         return _return
- 
     def eTreeButton_1(self, event):
         _widget = event.widget
         if self.trGroup.item(_widget.focus())['tags'][0] == 'file':
@@ -429,11 +450,10 @@ class main():
                 self.show()
             except:
                 pass
-        
     def getTreeData(self, _pic):
         if self.isZ: return
         self.cleanTreeNode()
-        today_date = _gettime(_type='file')
+        today_date = util._gettime(_type='file')
         _info = self.getPicInfo(_pic)
         if _pic not in list(self.showPics.keys()):
             _group_key = '%s_%s' % (str(_info[1]), _info[2])
@@ -489,10 +509,11 @@ class main():
     def save(self):
         if self.isG and len(self.CAR_ID) > 0 and self.CAR_ID[0] not in self.history['CAR']:
             bbox_car = self.canvas.bbox(self.CAR_ID[0])
-            x = round((bbox_car[0] - self.imgPosition[0]) / self.showZoomRatio)
-            y = round((bbox_car[1] - self.imgPosition[1]) / self.showZoomRatio)
-            w = round((bbox_car[2] - self.imgPosition[0]) / self.showZoomRatio - x)
-            h = round((bbox_car[3] - self.imgPosition[1]) / self.showZoomRatio - y)
+            _para = self.canvas.bbox(self.IMG_ID[0])
+            x = round((bbox_car[0] - _para[0]) / self.showZoomRatio)
+            y = round((bbox_car[1] - _para[1]) / self.showZoomRatio)
+            w = round((bbox_car[2] - bbox_car[0]) / self.showZoomRatio)
+            h = round((bbox_car[3] - bbox_car[1]) / self.showZoomRatio)
             newCalibration = (x,y,w,h)
             # self.calibrationHelper.setcarbody(newCalibration)
             self.calibrationHelper.carbody(
@@ -500,16 +521,16 @@ class main():
                 self.currentPicInfo[1], 
                 self.currentPicInfo[2], 
                 _new=newCalibration)
-            if self.oldCalibrationInfo.count(-1) != 4 and self.isAutoCalibration is True:
-                # print('准备自动标定')
-                self.autoCalibrationParams[0] = x - self.oldCalibrationInfo[0]
-                self.autoCalibrationParams[1] = y - self.oldCalibrationInfo[1]
-                self.autoCalibrationParams[2] = w / self.oldCalibrationInfo[2]
-                self.autoCalibrationParams[3] = h / self.oldCalibrationInfo[3]
-                _lst = self._getElementsFromTree()
-                _lst.remove(self.currentPicInfo[0])
-                self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
-                self.autoCalibrationParams = [0, 0, 1, 1]
+            # if self.oldCalibrationInfo.count(-1) != 4 and self.isAutoCalibration is True:
+            #     # print('准备自动标定')
+            #     self.autoCalibrationParams[0] = x - self.oldCalibrationInfo[0]
+            #     self.autoCalibrationParams[1] = y - self.oldCalibrationInfo[1]
+            #     self.autoCalibrationParams[2] = w / self.oldCalibrationInfo[2]
+            #     self.autoCalibrationParams[3] = h / self.oldCalibrationInfo[3]
+            #     _lst = self._getElementsFromTree()
+            #     _lst.remove(self.currentPicInfo[0])
+            #     self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
+            #     self.autoCalibrationParams = [0, 0, 1, 1]
 
         # else:
         #     print('车厢标定无改动！')
@@ -537,13 +558,13 @@ class main():
                 Z=self.isZ)
         # else:
         #     print('铁轨标定无改动！')
-        if self.drawMode == OUTLINE_CALIBRATION and len(self.OUTLINE_ID) > 0 and self.OUTLINE_ID[0] not in self.history['OUTLINE']:
+        if self.drawMode == const.OUTLINE_CALIBRATION and len(self.OUTLINE_ID) > 0 and self.OUTLINE_ID[0] not in self.history['OUTLINE']:
             self.calibrationHelper.outline(
                 self.currentPicInfo[1],
                 _new=self.outlines)
         # else:
         #     print('铁轨标定无改动！')
-        if self.drawMode == OUTLINE_CALIBRATION2 and len(self.OUTLINE_MIDDLE_ID) > 0 and self.OUTLINE_MIDDLE_ID[0] not in self.history['OUTLINE_MIDDLE']:
+        if self.drawMode == const.OUTLINE_CALIBRATION2 and len(self.OUTLINE_MIDDLE_ID) > 0 and self.OUTLINE_MIDDLE_ID[0] not in self.history['OUTLINE_MIDDLE']:
             self.calibrationHelper.outline2(
                 self.currentPicInfo[1],
                 _new=self.outlines)
@@ -562,13 +583,7 @@ class main():
         return _kinds
 
     def openPictureFolder(self):
-        self.isPicsReady = False
-        self.isZ = False
-        self.isT = False
-        self.isG = True
         self.allPics = []
-        self.showPics = []
-        self.cleanTreeNode()
         dirpath = askdirectory(initialdir=os.path.join(sys.path[0]), title='请选择图片文件夹')
         self.currentPicIndex = 0
         if os.path.exists(dirpath) is True:
@@ -577,7 +592,7 @@ class main():
             self.isPicsReady = True
             if self.calibrationFile is not None and self.calibrationHelper is not None:
                 self.display()
-        self.updateStatusInfo()
+        # self.updateStatusInfo()
 
 
     def openTPictureFolder(self):
@@ -595,9 +610,7 @@ class main():
             self.isPicsReady = True
             if self.calibrationFile is not None and self.calibrationHelper is not None:
                 self.display()
-        self.updateStatusInfo()
-
-
+        # self.updateStatusInfo()
     def openZPictureFolder(self):
         self.isPicsReady = False
         self.isZ = True
@@ -614,8 +627,7 @@ class main():
             self.isPicsReady = True
             if self.calibrationFile is not None and self.calibrationHelper is not None:
                 self.display()
-        self.updateStatusInfo()
-
+        # self.updateStatusInfo()
     def refreshData(self, handleCalibration=False, handlePics=False, _handlePics_param=None):
         if handleCalibration:
             self.handleCarPositionfile()
@@ -625,20 +637,20 @@ class main():
             if _handlePics_param is not None:
                 self.setCurrnetPic(_handlePics_param)
 
-
     def display(self, _pics=None, _index=0):
-        if self.isZ:
-            self.refreshData(handleCalibration=True, handlePics=True)
-            self.setCurrnetPic(list(self.showPics.keys())[0])
-        if self.isG:
-            if _pics is None:
-                self.refreshData(handlePics=True)
-                self.setCurrnetPic(list(self.showPics.keys())[0])
-            if _pics is not None:
-                self.refreshData(handleCalibration=True, handlePics=True, _handlePics_param=_pics[_index])
-        if self.isT:
-            self.refreshData(handleCalibration=True, handlePics=True)
-            self.setCurrnetPic(list(self.showPics.keys())[0])
+        # if self.isZ:
+        #     self.refreshData(handleCalibration=True, handlePics=True)
+        #     self.setCurrnetPic(list(self.showPics.keys())[0])
+        # if self.isG:
+        #     if _pics is None:
+        #         self.refreshData(handlePics=True)
+        #         self.setCurrnetPic(list(self.showPics.keys())[0])
+        #     if _pics is not None:
+        #         self.refreshData(handleCalibration=True, handlePics=True, _handlePics_param=_pics[_index])
+        # if self.isT:
+        #     self.refreshData(handleCalibration=True, handlePics=True)
+        #     self.setCurrnetPic(list(self.showPics.keys())[0])
+        self.setCurrnetPic(self.allPics[self.currentPicIndex])
         self.show()
 
     def getShowPics(self):
@@ -658,7 +670,6 @@ class main():
             for _key in self.picGroups.keys():
                 _return[_key] = None
         self.showPics = _return
-
     
     def openCalibrationFile(self):
         self.isCalibrationFileReady = False
@@ -669,8 +680,7 @@ class main():
             self.handleCarPositionfile()
             if len(self.allPics) != 0 and self.calibrationFile is not None:
                 self.display()
-        self.updateStatusInfo()
-
+        # self.updateStatusInfo()
             
     def handleCarPositionfile(self):
         self.analyzeCalibrationFile()
@@ -752,7 +762,7 @@ class main():
         return nm
             
     def updateInfo(self):
-        _info = '(%d/%d) %s' % (self.currentPicIndex + 1, len(self.showPics), self.currentPic)
+        _info = '(%d/%d) %s' % (self.currentPicIndex + 1, len(self.allPics), self.currentPic)
         self.lbPicInfo.config(text=_info)
 
     def getExtName(self, _filepath, toget='ex'):
@@ -793,13 +803,13 @@ class main():
             bbox = self.canvas.bbox(self.IMG_ID[0])
         if self.oldCalibrationInfo is None or len(self.oldCalibrationInfo) == 0 or self.oldCalibrationInfo.count(
             -1) == 4: return [0, 0, 0, 0]
-        if mode == CAR_CALIBRATION_READ:   # 车厢标定 origin >> pic
+        if mode == const.CAR_CALIBRATION_READ:   # 车厢标定 origin >> pic
             x1 = int(self.oldCalibrationInfo[0] * self.showZoomRatio) + params[0]
             y1 = int(self.oldCalibrationInfo[1] * self.showZoomRatio) + params[1]
             x2 = int((self.oldCalibrationInfo[2] + self.oldCalibrationInfo[0]) * self.showZoomRatio) + params[0]
             y2 = int((self.oldCalibrationInfo[3] + self.oldCalibrationInfo[1]) * self.showZoomRatio) + params[1]
             return x1, y1, x2, y2
-        elif mode == CAR_CALIBRATION_WRITE: #车厢标定 pic >> origin
+        elif mode == const.CAR_CALIBRATION_WRITE: #车厢标定 pic >> origin
             oStartX = int(params[0] / self.showZoomRatio)
             oStartY = int(params[1] / self.showZoomRatio)
             oEndX = int(params[2] / self.showZoomRatio)
@@ -807,7 +817,7 @@ class main():
             oWidth = oEndX - oStartX
             oHeight = oEndY - oStartY
             return (oStartX, oStartY, oWidth, oHeight)
-        elif mode == HANDLECOORDS_MODE_ORIGIN_IMAGE_SHOW:
+        elif mode == const.HANDLECOORDS_MODE_ORIGIN_IMAGE_SHOW:
             if len(self.IMG_ID) != 0:
                 X = params[0]
                 Y = params[1]
@@ -821,7 +831,7 @@ class main():
                 elif bbox[1] > 0:
                     Y -= bbox[1]
                 return X, Y
-        elif mode == HANDLECOORDS_MODE_ORIGIN_IMAGE_SAVE:
+        elif mode == const.HANDLECOORDS_MODE_ORIGIN_IMAGE_SAVE:
             img_bbox = self.canvas.bbox(self.IMG_ID[0])
             car_bbox = self.canvas.bbox(self.CAR_ID[0])
             if img_bbox[0] > 0:
@@ -877,36 +887,39 @@ class main():
     def show(self):
         # 清理对象
         self.clearAllCanvas()
-        if self.display_mode == DISPLAY_MODE_ORIGIN:
-            self.displayImage2()    
-        elif self.display_mode == DISPLAY_MODE_ZOOM:
+        if self.FULL_SCREEN:
+            self.displayImage2()
+        else:
             self.displayImage()
-        if self.isT is True:
+        # if self.display_mode == DISPLAY_MODE_ORIGIN:
+        #     self.displayImage2()    
+        # elif self.display_mode == DISPLAY_MODE_ZOOM:
+        #     self.displayImage()
+        self.check_data_type(self.allPics[self.currentPicIndex])
+        if self.isT:
             self.displayOutline()
             self.displayOutline2()
         else:
-            if self.isZ is False:
+            if self.isG:
                 self.displayCarCalibration()
             self.displayAxelCalibration()
             self.displayRailCalibration()
-        self.getTreeData(self.currentPic)
+        # self.getTreeData(self.currentPic)
         self.updateInfo()
-
-
-
-
-
 
     def displayImage(self):
         self.origin_img = pilImage.open(self.currentPic)
         self.show_img = self.resizeImage(self.origin_img)
         self._photo = pilImgTk.PhotoImage(self.show_img)
-        _img = self.canvas.create_image(450, 300, image=self._photo)
+        _middle = self.win_size[0]/2, self.win_size[1]/2
+        _img = self.canvas.create_image(_middle[0], _middle[1], image=self._photo)
         self.imgPosition = self.canvas.bbox(_img)
         self.IMG_ID.append(_img)
 
     def displayImage2(self):
         self.origin_img = pilImage.open(self.currentPic)
+        self.showZoomRatio = 1
+        self.show_img = self.origin_img
         self._photo = pilImgTk.PhotoImage(self.origin_img)
         _img = self.canvas.create_image(
             (
@@ -916,6 +929,18 @@ class main():
             image=self._photo)
         self.imgPosition = self.canvas.bbox(_img)
         self.IMG_ID.append(_img)
+
+    def bbox_scale(self, xy_scale, specify=None):
+        # 全图 > 清空canvas > 按原始大小重绘全部元素
+
+        if specify is None:
+            _items = self.canvas.find_all()
+            # self.clearAllCanvas()
+            for item in _items:
+                self.canvas.scale(item,self.canvas.bbox(self.IMG_ID[0])[0],self.canvas.bbox(self.IMG_ID[0])[1],xy_scale,xy_scale)
+        else:
+            self.canvas.move(specify, offX, offY)
+
 
     def bbox_move(self, offX, offY, specify=None):
         if specify is None:
@@ -938,16 +963,16 @@ class main():
         )
     
         #print('exists carbody >>> ',self.oldCalibrationInfo)
-        if self.display_mode == DISPLAY_MODE_ZOOM:
-            _car = self.handleCoords(CAR_CALIBRATION_READ, self.imgPosition)
+        if self.display_mode == const.DISPLAY_MODE_ZOOM:
+            _car = self.handleCoords(const.CAR_CALIBRATION_READ, self.canvas.bbox(self.IMG_ID[0]))
             if _car.count(-1) != 4:  # 不为初始值
                 x1, y1, x2, y2 = _car
-                _x1 = 450 - round(self.oldCalibrationInfo[2] * self.showZoomRatio /2)
+                _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo[2] * self.showZoomRatio /2)
                 _x2 = x2 - x1
                 car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
                 self.CAR_ID.append(car_id)
                 self.history['CAR'].append(car_id)
-        elif self.display_mode == DISPLAY_MODE_ORIGIN:
+        elif self.display_mode == const.DISPLAY_MODE_ORIGIN:
             x1 = self.oldCalibrationInfo[0]
             y1 = self.oldCalibrationInfo[1]
             x2 = self.oldCalibrationInfo[2] + x1
@@ -1044,44 +1069,44 @@ class main():
         lst.clear()
 
     def resizeImage(self, im):
-        wratio = 1.0 * self.showSize[0] / im.size[0]  # 计算width缩放倍数
-        hratio = 1.0 * self.showSize[1] / im.size[1]  # 计算height缩放倍数
+        wratio = 1.0 * self.show_size[0] / im.size[0]  # 计算width缩放倍数
+        hratio = 1.0 * self.show_size[1] / im.size[1]  # 计算height缩放倍数
         self.showZoomRatio = min([wratio, hratio])
         width = int(im.size[0] * self.showZoomRatio)
         height = int(im.size[1] * self.showZoomRatio)
         return im.resize((width, height), pilImage.ANTIALIAS)
 
     def showNextPic(self):
-        if -1 < self.currentPicIndex + 1 < len(self.showPics):
+        if -1 < self.currentPicIndex + 1 < len(self.allPics):
             self.currentPicIndex += 1
-            self.setCurrnetPic(list(self.showPics.keys())[self.currentPicIndex])
+            self.setCurrnetPic(self.allPics[self.currentPicIndex])
             self.show()
             self.updateInfo()
 
     def showLastPic(self):
-        if -1 < self.currentPicIndex - 1 < len(self.showPics):
+        if -1 < self.currentPicIndex - 1 < len(self.allPics):
             self.currentPicIndex -= 1
-            self.setCurrnetPic(list(self.showPics.keys())[self.currentPicIndex])
+            self.setCurrnetPic(self.allPics[self.currentPicIndex])
             self.show()
             self.updateInfo()
             
     def setCarCalibration(self):
-        self.drawMode = CAR_CALIBRATION
+        self.drawMode = const.CAR_CALIBRATION
 
     def setOutlineCalibration(self):
-        self.drawMode = OUTLINE_CALIBRATION
+        self.drawMode = const.OUTLINE_CALIBRATION
 
     def setOutlineCalibration2(self):
-        self.drawMode = OUTLINE_CALIBRATION2
+        self.drawMode = const.OUTLINE_CALIBRATION2
 
     def setAxelCalibration(self):
-        self.drawMode = AXEL_CALIBRATION
+        self.drawMode = const.AXEL_CALIBRATION
 
     def setRailCalibration(self):
-        self.drawMode = RAIL_CALIBRATION
+        self.drawMode = const.RAIL_CALIBRATION
 
     def setWheelCalibration(self):
-        self.drawMode = WHEEL_CALIBRATION
+        self.drawMode = const.WHEEL_CALIBRATION
 
     def eCanvasMotion(self, event):
         if len(self.IMG_ID) == 0: return
@@ -1104,6 +1129,7 @@ class main():
         self._clear_menu()
         popmenu = Menu(self.canvas, tearoff=0)
         self.current_actived_menu = popmenu
+        
         if self.isG:
             popmenu.add_command(label='车厢标定', command=self.setCarCalibration)
             popmenu.add_command(label='车轴标定', command=self.setAxelCalibration)
@@ -1119,27 +1145,40 @@ class main():
     def eCanvasButton_1(self, event):
         self.startX = event.x
         self.startY = event.y
-        if self.display_mode == DISPLAY_MODE_ZOOM:
-            if self.drawMode == CAR_CALIBRATION:
-                if len(self.coords) == 0:
-                    self.coords.append((event.x, event.y))
-                else:
-                    self.coords.clear()
-                    self.coords.append((event.x, event.y))
-            elif self.drawMode == 2:
-                self.cleanCanvasByType(self.AXEL_ID, self.canvas)
-                self.cleanCanvasByType(self.WHEEL_ID, self.canvas)
-                _side = self.currentPicInfo[2]
-                _line = str(self.currentPicInfo[1])
-                _kind = self.currentPicInfo[0]
-                _w = self.origin_img.size[0]
-                self.WHEEL_ID.append(
-                    self.canvas.create_line(0, event.y, self.imgPosition[2], event.y, width=2, fill='yellow')
+        if self.CTRL: return
+        if self.drawMode == const.CAR_CALIBRATION:
+            self.coords.append((event.x, event.y))
+            self._create_point(event.x,event.y,2,fill='red')
+            if len(self.coords) >= 2:
+                self.cleanCanvasByType(self.CAR_ID, self.canvas)
+                self.cleanCanvasByType(self.POINT_ID, self.canvas)
+                _new = self.canvas.create_rectangle(
+                    # self.coords[0][0] + bbox[0], self.coords[0][1] + bbox[1],
+                    self.coords[0][0], self.coords[0][1],
+                    event.x, event.y,
+                    width=2,
+                    outline='red'
                 )
-                self.axel_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                
-                _wheel = self._getpicwheelinfo()
-                _lst_axel = _wheel[:len(_wheel)-_wheel.count(-1)]
+                self.CAR_ID.append(_new)
+                # print('img > ', self.canvas.bbox(self.IMG_ID[0]))
+                # print('add > ', self.canvas.bbox(_new))
+                self.coords.clear()
+
+        elif self.drawMode == const.AXEL_CALIBRATION:
+            self.cleanCanvasByType(self.AXEL_ID, self.canvas)
+            self.cleanCanvasByType(self.WHEEL_ID, self.canvas)
+            _side = self.currentPicInfo[2]
+            _line = str(self.currentPicInfo[1])
+            _kind = self.currentPicInfo[0]
+            _w = self.origin_img.size[0]
+            self.WHEEL_ID.append(
+                self.canvas.create_line(0, event.y, self.canvas.bbox(self.IMG_ID[0])[2], event.y, width=2, fill='yellow')
+            )
+            self.axel_y = round((event.y - self.canvas.bbox(self.IMG_ID[0])[1]) / self.showZoomRatio)
+            
+            _wheel = self._getpicwheelinfo()
+            _lst_axel = _wheel[:len(_wheel)-_wheel.count(-1)]
+            if len(_lst_axel) > 0:
                 if _side == 'R':
                     _lst_axel.reverse()
                     _lst_axel = [_w - x for x in _lst_axel]
@@ -1153,53 +1192,119 @@ class main():
                         self.show_img.size[1] + self.imgPosition[1]),
                         (round(_axel*self.showZoomRatio) - _x_offset,
                         self.imgPosition[1]), width=2, fill='yellow'))
-            elif self.drawMode == 3:
-                self.cleanCanvasByType(self.RAIL_ID, self.canvas)
-                self.rail_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                self.RAIL_ID.append(
-                    self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-                )
-            elif self.drawMode == OUTLINE_CALIBRATION:
-                if self.outlines[0] != 0 and self.outlines[1] != 0 or len(self.OUTLINE_ID) > 1:
-                    self.outlines[0] = 0
-                    self.outlines[1] = 0
-                    self.cleanCanvasByType(self.OUTLINE_ID, self.canvas)
-                if self.outlines[0] == 0:
-                    self.outlines[0] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                elif self.outlines[1] == 0:
-                    self.outlines[1] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                # print(self.outlines)
-                self.OUTLINE_ID.append(
-                    self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-                )
-            elif self.drawMode == OUTLINE_CALIBRATION2:
-                if self.outlines[2] != 0 or len(self.OUTLINE_MIDDLE_ID) > 0:
-                    self.outlines[2] = 0
-                    self.cleanCanvasByType(self.OUTLINE_MIDDLE_ID, self.canvas)
-                if self.outlines[2] == 0:
-                    self.outlines[2] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                # print(self.outlines)
-                self.OUTLINE_MIDDLE_ID.append(
-                    self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-                )
+        elif self.drawMode == const.RAIL_CALIBRATION:
+            self.cleanCanvasByType(self.RAIL_ID, self.canvas)
+            self.rail_y = round((event.y - self.canvas.bbox(self.IMG_ID[0])[1]) / self.showZoomRatio)
+            self.RAIL_ID.append(
+                self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+            )
+        elif self.drawMode == const.OUTLINE_CALIBRATION:
+            if self.outlines[0] != 0 and self.outlines[1] != 0 or len(self.OUTLINE_ID) > 1:
+                self.outlines[0] = 0
+                self.outlines[1] = 0
+                self.cleanCanvasByType(self.OUTLINE_ID, self.canvas)
+            if self.outlines[0] == 0:
+                self.outlines[0] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+            elif self.outlines[1] == 0:
+                self.outlines[1] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+            # print(self.outlines)
+            self.OUTLINE_ID.append(
+                self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+            )
+        elif self.drawMode == const.OUTLINE_CALIBRATION2:
+            if self.outlines[2] != 0 or len(self.OUTLINE_MIDDLE_ID) > 0:
+                self.outlines[2] = 0
+                self.cleanCanvasByType(self.OUTLINE_MIDDLE_ID, self.canvas)
+            if self.outlines[2] == 0:
+                self.outlines[2] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+            # print(self.outlines)
+            self.OUTLINE_MIDDLE_ID.append(
+                self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+            )
 
-        elif self.display_mode == DISPLAY_MODE_ORIGIN:
-            if self.drawMode == 1:
-                if self.CTRL_ENABLE: return
-                self.coords.append((event.x, event.y))
-                if len(self.coords) >= 2:
-                    self.cleanCanvasByType(self.CAR_ID, self.canvas)
-                    _new = self.canvas.create_rectangle(
-                        # self.coords[0][0] + bbox[0], self.coords[0][1] + bbox[1],
-                        self.coords[0][0], self.coords[0][1],
-                        event.x, event.y,
-                        width=2,
-                        outline='red'
-                    )
-                    self.CAR_ID.append(_new)
-                    # print('img > ', self.canvas.bbox(self.IMG_ID[0]))
-                    # print('add > ', self.canvas.bbox(_new))
-                    self.coords.clear()
+
+  
+        # if self.display_mode == DISPLAY_MODE_ZOOM:
+        #     if self.drawMode == CAR_CALIBRATION:
+        #         if len(self.coords) == 0:
+        #             self.coords.append((event.x, event.y))
+        #         else:
+        #             self.coords.clear()
+        #             self.coords.append((event.x, event.y))
+        #     elif self.drawMode == AXEL_CALIBRATION:
+        #         self.cleanCanvasByType(self.AXEL_ID, self.canvas)
+        #         self.cleanCanvasByType(self.WHEEL_ID, self.canvas)
+        #         _side = self.currentPicInfo[2]
+        #         _line = str(self.currentPicInfo[1])
+        #         _kind = self.currentPicInfo[0]
+        #         _w = self.origin_img.size[0]
+        #         self.WHEEL_ID.append(
+        #             self.canvas.create_line(0, event.y, self.imgPosition[2], event.y, width=2, fill='yellow')
+        #         )
+        #         self.axel_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+                
+        #         _wheel = self._getpicwheelinfo()
+        #         _lst_axel = _wheel[:len(_wheel)-_wheel.count(-1)]
+        #         if _side == 'R':
+        #             _lst_axel.reverse()
+        #             _lst_axel = [_w - x for x in _lst_axel]
+        #             _x_offset = round(_lst_axel[0]*self.showZoomRatio) - event.x
+        #         if _side == 'L':
+        #             _x_offset = round(_lst_axel[2]*self.showZoomRatio) - event.x
+        #         self.axel_x_offset = round(_x_offset/self.showZoomRatio)
+        #         for _axel in _lst_axel:
+        #             self.AXEL_ID.append(self.canvas.create_line(
+        #                 (round(_axel*self.showZoomRatio) - _x_offset,
+        #                 self.show_img.size[1] + self.imgPosition[1]),
+        #                 (round(_axel*self.showZoomRatio) - _x_offset,
+        #                 self.imgPosition[1]), width=2, fill='yellow'))
+        #     elif self.drawMode == RAIL_CALIBRATION:
+        #         self.cleanCanvasByType(self.RAIL_ID, self.canvas)
+        #         self.rail_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+        #         self.RAIL_ID.append(
+        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+        #         )
+        #     elif self.drawMode == OUTLINE_CALIBRATION:
+        #         if self.outlines[0] != 0 and self.outlines[1] != 0 or len(self.OUTLINE_ID) > 1:
+        #             self.outlines[0] = 0
+        #             self.outlines[1] = 0
+        #             self.cleanCanvasByType(self.OUTLINE_ID, self.canvas)
+        #         if self.outlines[0] == 0:
+        #             self.outlines[0] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+        #         elif self.outlines[1] == 0:
+        #             self.outlines[1] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+        #         # print(self.outlines)
+        #         self.OUTLINE_ID.append(
+        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+        #         )
+        #     elif self.drawMode == OUTLINE_CALIBRATION2:
+        #         if self.outlines[2] != 0 or len(self.OUTLINE_MIDDLE_ID) > 0:
+        #             self.outlines[2] = 0
+        #             self.cleanCanvasByType(self.OUTLINE_MIDDLE_ID, self.canvas)
+        #         if self.outlines[2] == 0:
+        #             self.outlines[2] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+        #         # print(self.outlines)
+        #         self.OUTLINE_MIDDLE_ID.append(
+        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
+        #         )
+
+        # elif self.display_mode == DISPLAY_MODE_ORIGIN:
+        #     if self.drawMode == 1:
+        #         if self.CTRL_ENABLE: return
+        #         self.coords.append((event.x, event.y))
+        #         if len(self.coords) >= 2:
+        #             self.cleanCanvasByType(self.CAR_ID, self.canvas)
+        #             _new = self.canvas.create_rectangle(
+        #                 # self.coords[0][0] + bbox[0], self.coords[0][1] + bbox[1],
+        #                 self.coords[0][0], self.coords[0][1],
+        #                 event.x, event.y,
+        #                 width=2,
+        #                 outline='red'
+        #             )
+        #             self.CAR_ID.append(_new)
+        #             # print('img > ', self.canvas.bbox(self.IMG_ID[0]))
+        #             # print('add > ', self.canvas.bbox(_new))
+        #             self.coords.clear()
 
     def eCanvasButton_1_release(self, event):
         if len(self.coords) > 1:
@@ -1232,7 +1337,7 @@ class main():
     def _create_point(self, x, y, r, **kwargs):
         #   画圆 point
         # self._create_point(500,300,2,fill='red')
-        return self.canvas.create_oval(x - r, y - r, x + r, y + r, **kwargs)
+        self.POINT_ID.append(self.canvas.create_oval(x - r, y - r, x + r, y + r, **kwargs))
 
 
     def _fetch_obj(self, event):
@@ -1358,7 +1463,6 @@ class main():
             except KeyError:
                 vals[_curkind[0]] = [(_curkind, [v]),]
         return vals
-
 class calibration():
     def __init__(self, calibrationFile):
         self.calibrationFile = calibrationFile
@@ -1413,7 +1517,7 @@ class calibration():
     
     def sideinfo(self, createDate=None, modifyDate=None, sideName=None):
         root = self.tree.getroot()
-        _now = _gettime(_type='file')
+        _now = util._gettime(_type='file')
 
         if root.get('side') is None:
             root.set('side', '无')
@@ -1496,8 +1600,8 @@ class calibration():
             if node is None:
                 _newKind = ET.SubElement(_parent, 'carcz')
                 _newKind.set('cztype', str(_kind))
-                _newKind.set('create_date', _gettime(_type='file'))
-                _newKind.set('modify_date', _gettime(_type='file'))
+                _newKind.set('create_date', util._gettime(_type='file'))
+                _newKind.set('modify_date', util._gettime(_type='file'))
                 _newKind.set('modify_mode', 'Manual')
                 _x = ET.SubElement(_newKind, 'X_carbody')
                 _x.text = str(_new[0])
@@ -1514,7 +1618,7 @@ class calibration():
                 node.find('width_carbody').text = str(_new[2])
                 node.find('height_carbody').text = str(_new[3])
                 node.set('modify_mode', 'Manual')
-                node.set('modify_date', _gettime(_type='file'))
+                node.set('modify_date', util._gettime(_type='file'))
             self.tree.write(self.calibrationFile)
 
     def axel(self, line, side, _new=None, Z=False):
@@ -1662,7 +1766,7 @@ class calibration():
                 _nCar.find('height_carbody').text = str(round(_height * autoCalibrationParams[3]))
                 _nCar.find('width_carbody').text = str(round(_width * autoCalibrationParams[2]))
                 _nCar.set('modify_mode', 'Auto')
-                _nCar.set('modify_date', _gettime(_type='file'))
+                _nCar.set('modify_date', util._gettime(_type='file'))
         self.tree.write(self.calibrationFile)
 
 
@@ -1672,27 +1776,14 @@ class calibration():
             self.dictPhototype[_line.get('line')] = _line
             for _side in _line:
                 self.dictPhototype[_line.get('line') + '_' + _side.get('imgtype')] = _side
-
-
 def start():
     m = Tk()
-    # _screen = (m.winfo_screenwidth(), m.winfo_screenheight())
-    # print(_screen)
-    # _geometry = '%sx%s' % (str(_screen[0]), str(_screen[1]))
-    # print(_geometry)
-    _screen = (1200, 620)
-    _geometry = '1200x620'
-    m.geometry(_geometry)
-    m.maxsize(width=_screen[0], height=_screen[1])
-    m.minsize(width=_screen[0], height=_screen[1])
     m.title('车型自动标定工具')
     _main = main(m)
     m.mainloop()
-
 def test():
     c = calibration('F:/data/05车型标定文件/唐官屯/CarPositionInformation_唐官屯 - 副本.config')
     c.build(1, '3', lTag='L')
-
 if __name__ == '__main__':
     start()
     # test()
