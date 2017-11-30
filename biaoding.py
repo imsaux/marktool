@@ -128,7 +128,7 @@ class main():
         self.isG = self.isZ = self.isT = False
         if '_ZL' in _file_name or '_ZR' in _file_name:
             self.isZ = True
-        elif _file_name[0] == 'T':
+        elif '_T' in _file_name:
             self.isT = True
         else:
             self.isG = True
@@ -860,6 +860,8 @@ class main():
             _line = str(int(_lst[1].split('.')[3])-1)
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
+            if 'T' == _lst[0][0] or 'Q' == _lst[0][0]:
+                _kind = _lst[1:]
             if _lst[3][0] == 'Z':
                 _side = _lst[3][1]
             else:
