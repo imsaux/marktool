@@ -62,11 +62,16 @@ class util:
 class main():
     def __init__(self, _mainobj):
         self.win = _mainobj
-        user32 = ctypes.windll.LoadLibrary('user32.dll')
-        menu_height = user32.GetSystemMetrics(15)
-        title_height = user32.GetSystemMetrics(4)
+        try:
+            user32 = ctypes.windll.LoadLibrary('user32.dll')
+            menu_height = user32.GetSystemMetrics(15)
+            title_height = user32.GetSystemMetrics(4)
+        except Exception as e:
+            menu_height = 20 ## todo 怎么处理跨平台获取bar高度
+            title_height = 20
         self.win_size = (self.win.winfo_screenwidth(), self.win.winfo_screenheight()-menu_height-title_height-20)
-        self.win.state('zoomed')
+        if os.name.upper() == 'NT':
+            self.win.state('zoomed')
         self.data_init()
         self.ui_init()
     def data_init(self, init=True):
@@ -561,6 +566,7 @@ class main():
         if self.drawMode == const.OUTLINE_CALIBRATION and len(self.OUTLINE_ID) > 0 and self.OUTLINE_ID[0] not in self.history['OUTLINE']:
             self.calibrationHelper.outline(
                 self.currentPicInfo[1],
+                kind=self.currentPicInfo[0],
                 _new=self.outlines)
         # else:
         #     print('铁轨标定无改动！')
@@ -861,7 +867,7 @@ class main():
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
             if 'T' == _lst[0][0] or 'Q' == _lst[0][0]:
-                _kind = _lst[1:]
+                _kind = _kind[1:] ## todo T和Q要不要保存在标定文件中
             if _lst[3][0] == 'Z':
                 _side = _lst[3][1]
             else:
@@ -1017,8 +1023,10 @@ class main():
 
 
     def displayOutline(self):
+        self.cleanCanvasByType(self.OUTLINE_ID, self.canvas)
         _line = str(self.currentPicInfo[1])
-        _outlines = self.calibrationHelper.outline(_line)
+        _kind = str(self.currentPicInfo[0])
+        _outlines = self.calibrationHelper.outline(_line, kind=_kind)
         for _outline in _outlines:
             outline_id = self.canvas.create_line(
                 0,
@@ -1031,17 +1039,18 @@ class main():
             self.history['OUTLINE'].append(outline_id)
 
     def displayOutline2(self):
-        _line = str(self.currentPicInfo[1])
-        _outline_middle = self.calibrationHelper.outline2(_line)
-        outline_id = self.canvas.create_line(
-            0,
-            _outline_middle *self.showZoomRatio + self.imgPosition[1],
-            self.imgPosition[2],
-            _outline_middle *self.showZoomRatio + self.imgPosition[1],
-            width=2,
-            fill='yellow')
-        self.OUTLINE_MIDDLE_ID.append(outline_id)
-        self.history['OUTLINE_MIDDLE'].append(outline_id)
+        pass
+        # _line = str(self.currentPicInfo[1])
+        # _outline_middle = self.calibrationHelper.outline2(_line)
+        # outline_id = self.canvas.create_line(
+        #     0,
+        #     _outline_middle *self.showZoomRatio + self.imgPosition[1],
+        #     self.imgPosition[2],
+        #     _outline_middle *self.showZoomRatio + self.imgPosition[1],
+        #     width=2,
+        #     fill='yellow')
+        # self.OUTLINE_MIDDLE_ID.append(outline_id)
+        # self.history['OUTLINE_MIDDLE'].append(outline_id)
 
     def displayRailCalibration(self):
         _side = self.currentPicInfo[2]
@@ -1600,19 +1609,19 @@ class calibration():
 
         else:
             if node is None:
-                _newKind = ET.SubElement(_parent, 'carcz')
-                _newKind.set('cztype', str(_kind))
-                _newKind.set('create_date', util._gettime(_type='file'))
-                _newKind.set('modify_date', util._gettime(_type='file'))
-                _newKind.set('modify_mode', 'Manual')
-                _x = ET.SubElement(_newKind, 'X_carbody')
+                _new_kind = ET.SubElement(_parent, 'carcz')
+                _new_kind.set('cztype', str(_kind))
+                _new_kind.set('create_date', util._gettime(_type='file'))
+                _new_kind.set('modify_date', util._gettime(_type='file'))
+                _new_kind.set('modify_mode', 'Manual')
+                _x = ET.SubElement(_new_kind, 'X_carbody')
                 _x.text = str(_new[0])
-                _y = ET.SubElement(_newKind, 'Y_carbody')
+                _y = ET.SubElement(_new_kind, 'Y_carbody')
                 _y.text = str(_new[1])
                 #_y.set('ratio', str(self.yratio))
-                _w = ET.SubElement(_newKind, 'width_carbody')
+                _w = ET.SubElement(_new_kind, 'width_carbody')
                 _w.text = str(_new[2])
-                _h = ET.SubElement(_newKind, 'height_carbody')
+                _h = ET.SubElement(_new_kind, 'height_carbody')
                 _h.text = str(_new[3])
             else:
                 node.find('X_carbody').text = str(_new[0])
@@ -1692,9 +1701,12 @@ class calibration():
                 nodeRail.text = str(_new)
             self.tree.write(self.calibrationFile)
 
-    def outline(self, line, _new=None):
+    def outline(self, line, kind=None, _new=None):
         xOutlineTop = ".t_top"
         xOutlineBottom = ".t_bottom"
+        if kind is not None:
+            _kind = self._getNewCode(kind)
+            xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
         # xOutlineMiddle = ".t_middle"
         _line = int(line)
         try:
@@ -1706,24 +1718,33 @@ class calibration():
             self.tree.write(self.calibrationFile)
             self.readxml()
             _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
-        nodeTop = _parent.find(xOutlineTop)
-        nodeBottom = _parent.find(xOutlineBottom)
+        node = _parent.find(xCarcz)
+        # nodeTop = _parent.find(xOutlineTop)
+        # nodeBottom = _parent.find(xOutlineBottom)
         # nodeMiddle = _parent.find(xOutlineMiddle)
         if _new is None:
-            _r = list()
-            _r.append(int(nodeTop.text) if nodeTop is not None else 0)
-            _r.append(int(nodeBottom.text) if nodeBottom is not None else 0)
-            # _r.append(int(nodeMiddle.text) if nodeMiddle is not None else 0)
-            return _r
+            if node is not None:
+                _top = int(node.find(xOutlineTop[1:]).text)
+                _bottom = int(node.find(xOutlineBottom[1:]).text)
+                return _top, _bottom
+            # _r = list()
+            # _r.append(int(nodeTop.text) if nodeTop is not None else 0)
+            # _r.append(int(nodeBottom.text) if nodeBottom is not None else 0)
+            # # _r.append(int(nodeMiddle.text) if nodeMiddle is not None else 0)
+            # return _r
+            else:
+                return 0,0
         else:
-            _col = [xOutlineTop, xOutlineBottom]
-            for obj in _col:
-                if _parent.find(obj) is None:
-                    _newObj = ET.Element(obj[1:])
-                    _newObj.text = str(_new[_col.index(obj)])
-                    _parent.insert(0, _newObj)
-                else:
-                    _parent.find(obj).text = str(_new[_col.index(obj)])
+            if node is None:
+                _new_kind = ET.SubElement(_parent, 'carcz')
+                _new_kind.set('cztype', str(_kind))
+                _new_kind.set('create_date', util._gettime(_type='file'))
+                _new_kind.set('modify_date', util._gettime(_type='file'))
+                _new_kind.set('modify_mode', 'Manual')
+                eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
+                eletop.text = str(_new[0])
+                elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
+                elebottom.text = str(_new[1])
             self.tree.write(self.calibrationFile)
 
     def outline2(self, line, _new=None):
