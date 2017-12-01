@@ -866,8 +866,8 @@ class main():
             _line = str(int(_lst[1].split('.')[3])-1)
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
-            if 'T' == _lst[0][0] or 'Q' == _lst[0][0]:
-                _kind = _kind[1:] ## todo T和Q要不要保存在标定文件中
+            # if 'T' == _lst[0][0] or 'Q' == _lst[0][0]:
+            #     _kind = _kind[1:] ## todo T和Q要不要保存在标定文件中
             if _lst[3][0] == 'Z':
                 _side = _lst[3][1]
             else:
@@ -1801,7 +1801,7 @@ class calibration():
                 self.dictPhototype[_line.get('line') + '_' + _side.get('imgtype')] = _side
 def start():
     m = Tk()
-    m.title('车型自动标定工具')
+    m.title('车型标定工具')
     _main = main(m)
     m.mainloop()
 def test():
