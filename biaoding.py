@@ -86,7 +86,7 @@ class main():
         self.showPics = list()
         self.picGroups = None
         self.calibrationFile = None
-        self.drawMode = const.CAR_CALIBRATION
+        self.drawMode = 0
         self.showoffset = 0, 0
         self.drawObj = None
         self.dirname = None
@@ -117,7 +117,7 @@ class main():
         self.display_mode = const.DISPLAY_MODE_ZOOM
         self.CONSULT_ID = list()
         self.CTRL = False
-        self.isAutoCalibration = True
+        self.isAutoCalibration = False
         self.isPicsReady = False
         self.isCalibrationFileReady = False
         self.current_zoom_ratio = 1
@@ -589,6 +589,7 @@ class main():
         return _kinds
 
     def openPictureFolder(self):
+        self.drawMode = 0
         self.allPics = []
         dirpath = askdirectory(initialdir=os.path.join(sys.path[0]), title='请选择图片文件夹')
         self.currentPicIndex = 0
@@ -906,7 +907,7 @@ class main():
         self.check_data_type(self.allPics[self.currentPicIndex])
         if self.isT:
             self.displayOutline()
-            self.displayOutline2()
+            # self.displayOutline2()
         else:
             if self.isG:
                 self.displayCarCalibration()
@@ -1707,6 +1708,7 @@ class calibration():
         if kind is not None:
             _kind = self._getNewCode(kind)
             xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
+
         # xOutlineMiddle = ".t_middle"
         _line = int(line)
         try:
@@ -1745,6 +1747,10 @@ class calibration():
                 eletop.text = str(_new[0])
                 elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
                 elebottom.text = str(_new[1])
+            else:
+                node.find(xOutlineTop[1:]).text = str(_new[0])
+                node.find(xOutlineBottom[1:]).text = str(_new[1])
+
             self.tree.write(self.calibrationFile)
 
     def outline2(self, line, _new=None):
