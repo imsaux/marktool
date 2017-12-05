@@ -370,32 +370,7 @@ class main():
             top.destroy()
         btnClose = Button(top, text='确定', command=_close, width=10)
         btnClose.place(x=230, y=465)
-    def eKey(self, event):
-        pass
-        # print(event.keycode)
-        
-        # if event.keycode == 27:
-        #     self.recovery()
-        #     self.setToMainPic()
-            
-        # if event.keycode == 66:
-        #     self.backupShowPics = self.showPics
-        #     _dt = self._find_new_car()
-        #     self.showPics = _dt
-        #     self.currentPicIndex = 0
-        #     self.setCurrnetPic(list(self.showPics.keys())[self.currentPicIndex])
-        #     self.show()
-        #     self.updateInfo()
-        #     self.setToMainPic()
-        
-        # if event.keycode == 65:
-        #     if self.backupShowPics is not None:
-        #         self.showPics = self.backupShowPics
-        #         self.currentPicIndex = 0
-        #         self.setCurrnetPic(list(self.showPics.keys())[self.currentPicIndex])
-        #         self.show()
-        #         self.updateInfo()
-        #         self.setToMainPic()
+
     def stats(self, mode='status'):
         def _filter(x):
             return x is not None
@@ -601,40 +576,6 @@ class main():
                 self.display()
         # self.updateStatusInfo()
 
-
-    def openTPictureFolder(self):
-        self.isPicsReady = False
-        self.isZ = False
-        self.isT = True
-        self.allPics = []
-        self.showPics = []
-        self.cleanTreeNode()
-        dirpath = askdirectory(initialdir=os.path.join(sys.path[0]), title='请选择超限图片文件夹')
-        self.currentPicIndex = 0
-        if os.path.exists(dirpath) is True:
-            for root, dirs, files in os.walk(dirpath, topdown=False):
-                self.allPics = [os.path.normpath(os.path.join(root, name)) for name in files]
-            self.isPicsReady = True
-            if self.calibrationFile is not None and self.calibrationHelper is not None:
-                self.display()
-        # self.updateStatusInfo()
-    def openZPictureFolder(self):
-        self.isPicsReady = False
-        self.isZ = True
-        self.isG = False
-        self.isT = False
-        self.allPics = []
-        self.showPics = []
-        self.cleanTreeNode()
-        dirpath = askdirectory(initialdir=os.path.join(sys.path[0]), title='请选择走行部图片文件夹')
-        self.currentPicIndex = 0
-        if os.path.exists(dirpath) is True:
-            for root, dirs, files in os.walk(dirpath, topdown=False):
-                self.allPics = [os.path.normpath(os.path.join(root, name)) for name in files]
-            self.isPicsReady = True
-            if self.calibrationFile is not None and self.calibrationHelper is not None:
-                self.display()
-        # self.updateStatusInfo()
     def refreshData(self, handleCalibration=False, handlePics=False, _handlePics_param=None):
         if handleCalibration:
             self.handleCarPositionfile()
@@ -1748,8 +1689,12 @@ class calibration():
                 elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
                 elebottom.text = str(_new[1])
             else:
-                node.find(xOutlineTop[1:]).text = str(_new[0])
-                node.find(xOutlineBottom[1:]).text = str(_new[1])
+                if int(_new[0]) < int(_new[1]): #判断那个是顶部线，哪个是底部线
+                    node.find(xOutlineTop[1:]).text = str(_new[0])
+                    node.find(xOutlineBottom[1:]).text = str(_new[1])
+                else:
+                    node.find(xOutlineTop[1:]).text = str(_new[1])
+                    node.find(xOutlineBottom[1:]).text = str(_new[0])
 
             self.tree.write(self.calibrationFile)
 
