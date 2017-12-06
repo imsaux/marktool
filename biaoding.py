@@ -1644,8 +1644,8 @@ class calibration():
             self.tree.write(self.calibrationFile)
 
     def outline(self, line, kind=None, _new=None):
-        xOutlineTop = ".t_top"
-        xOutlineBottom = ".t_bottom"
+        xOutlineTop = ".X_carbody"
+        xOutlineBottom = ".Y_carbody"
         if kind is not None:
             _kind = self._getNewCode(kind)
             xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
@@ -1662,32 +1662,25 @@ class calibration():
             self.readxml()
             _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
         node = _parent.find(xCarcz)
-        # nodeTop = _parent.find(xOutlineTop)
-        # nodeBottom = _parent.find(xOutlineBottom)
-        # nodeMiddle = _parent.find(xOutlineMiddle)
         if _new is None:
             if node is not None:
                 _top = int(node.find(xOutlineTop[1:]).text)
                 _bottom = int(node.find(xOutlineBottom[1:]).text)
                 return _top, _bottom
-            # _r = list()
-            # _r.append(int(nodeTop.text) if nodeTop is not None else 0)
-            # _r.append(int(nodeBottom.text) if nodeBottom is not None else 0)
-            # # _r.append(int(nodeMiddle.text) if nodeMiddle is not None else 0)
-            # return _r
             else:
                 return 0,0
         else:
             if node is None:
                 _new_kind = ET.SubElement(_parent, 'carcz')
                 _new_kind.set('cztype', str(_kind))
-                _new_kind.set('create_date', util._gettime(_type='file'))
-                _new_kind.set('modify_date', util._gettime(_type='file'))
-                _new_kind.set('modify_mode', 'Manual')
                 eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
                 eletop.text = str(_new[0])
                 elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
                 elebottom.text = str(_new[1])
+                eleH = ET.SubElement(_new_kind, 'height_carbody')
+                eleH.text = '0'
+                eleW = ET.SubElement(_new_kind, 'width_carbody')
+                eleW.text = '0'
             else:
                 if int(_new[0]) < int(_new[1]): #判断那个是顶部线，哪个是底部线
                     node.find(xOutlineTop[1:]).text = str(_new[0])
