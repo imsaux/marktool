@@ -1745,6 +1745,8 @@ class calibration():
             for _side in _line:
                 self.dictPhototype[_line.get('line') + '_' + _side.get('imgtype')] = _side
 
+        self.rebuilt_TOP()
+
     def rebuilt_TOP(self):
         for key in self.dictPhototype.keys():
             if 'T' in key:
@@ -1757,13 +1759,13 @@ class calibration():
                             carz.remove(carz.find(node))
 
                         elebottom = ET.SubElement(carz, 'X_carbody')
-                        elebottom.text = '0'
+                        elebottom.text = '-1'
                         eletop = ET.SubElement(carz, 'Y_carbody')
                         eletop.text = str(v[0])
                         eleH = ET.SubElement(carz, 'height_carbody')
                         eleH.text = str(v[1] - v[0] + 1)
                         eleW = ET.SubElement(carz, 'width_carbody')
-                        eleW.text = '0'
+                        eleW.text = '-1'
                         self.tree.write(self.calibrationFile)
                     except Exception as e:
                         continue
