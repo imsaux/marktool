@@ -1650,6 +1650,8 @@ class calibration():
         xOutlineWidth = ".width_carbody"
         _kind = self._getNewCode(kind)
         xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
+        if _new is not None and int(_new[0]) > int(_new[1]):
+            _new[0], _new[1] = _new[1], _new[0]
 
         _line = int(line)
         try:
@@ -1675,21 +1677,19 @@ class calibration():
                 _new_kind.set('cztype', str(_kind))
                 _top = int(_new[0])
                 _bottom = int(_new[1]) - _top + 1
-                eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
-                eletop.text = str(_top)
-                elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
-                elebottom.text = str(_bottom)
                 eleH = ET.SubElement(_new_kind, 'X_carbody')
                 eleH.text = '-1'
+                eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
+                eletop.text = str(_top)
                 eleW = ET.SubElement(_new_kind, xOutlineWidth[1:])
                 eleW.text = '-1'
+                elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
+                elebottom.text = str(_bottom)
             else:
-                if int(_new[0]) < int(_new[1]): #判断那个是顶部线，哪个是底部线
-                    node.find(xOutlineTop[1:]).text = str(_new[0])
-                    node.find(xOutlineBottom[1:]).text = str(_new[1])
-                else:
-                    node.find(xOutlineTop[1:]).text = str(_new[1])
-                    node.find(xOutlineBottom[1:]).text = str(_new[0])
+                _top = int(_new[0])
+                _bottom = int(_new[1]) - _top + 1
+                node.find(xOutlineTop[1:]).text = str(_top)
+                node.find(xOutlineBottom[1:]).text = str(_bottom)
 
             self.tree.write(self.calibrationFile)
 
@@ -1762,10 +1762,10 @@ class calibration():
                         elebottom.text = '-1'
                         eletop = ET.SubElement(carz, 'Y_carbody')
                         eletop.text = str(v[0])
-                        eleH = ET.SubElement(carz, 'height_carbody')
-                        eleH.text = str(v[1] - v[0] + 1)
                         eleW = ET.SubElement(carz, 'width_carbody')
                         eleW.text = '-1'
+                        eleH = ET.SubElement(carz, 'height_carbody')
+                        eleH.text = str(v[1] - v[0] + 1)
                         self.tree.write(self.calibrationFile)
                     except Exception as e:
                         continue
