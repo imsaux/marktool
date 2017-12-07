@@ -541,7 +541,7 @@ class main():
         if self.drawMode == const.OUTLINE_CALIBRATION and len(self.OUTLINE_ID) > 0 and self.OUTLINE_ID[0] not in self.history['OUTLINE']:
             self.calibrationHelper.outline(
                 self.currentPicInfo[1],
-                kind=self.currentPicInfo[0],
+                self.currentPicInfo[0],
                 _new=self.outlines)
         # else:
         #     print('铁轨标定无改动！')
@@ -968,7 +968,7 @@ class main():
         self.cleanCanvasByType(self.OUTLINE_ID, self.canvas)
         _line = str(self.currentPicInfo[1])
         _kind = str(self.currentPicInfo[0])
-        _outlines = self.calibrationHelper.outline(_line, kind=_kind)
+        _outlines = self.calibrationHelper.outline(_line, _kind)
         for _outline in _outlines:
             outline_id = self.canvas.create_line(
                 0,
@@ -1643,14 +1643,14 @@ class calibration():
                 nodeRail.text = str(_new)
             self.tree.write(self.calibrationFile)
 
-    def outline(self, line, kind=None, _new=None):
-        xOutlineTop = ".X_carbody"
-        xOutlineBottom = ".Y_carbody"
-        if kind is not None:
-            _kind = self._getNewCode(kind)
-            xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
+    def outline(self, line, kind, _new=None):
+        # new = [top.y, bottom.y, pic.width]
+        xOutlineTop = ".Y_carbody"
+        xOutlineBottom = ".height_carbody"
+        xOutlineWidth = ".width_carbody"
+        _kind = self._getNewCode(kind)
+        xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
 
-        # xOutlineMiddle = ".t_middle"
         _line = int(line)
         try:
             _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
@@ -1666,21 +1666,23 @@ class calibration():
             if node is not None:
                 _top = int(node.find(xOutlineTop[1:]).text)
                 _bottom = int(node.find(xOutlineBottom[1:]).text)
-                return _top, _bottom
+                return _top, _bottom - 1 + _top
             else:
                 return 0,0
         else:
             if node is None:
                 _new_kind = ET.SubElement(_parent, 'carcz')
                 _new_kind.set('cztype', str(_kind))
+                _top = int(_new[0])
+                _bottom = int(_new[1]) - _top + 1
                 eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
-                eletop.text = str(_new[0])
+                eletop.text = str(_top)
                 elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
-                elebottom.text = str(_new[1])
-                eleH = ET.SubElement(_new_kind, 'height_carbody')
-                eleH.text = '0'
-                eleW = ET.SubElement(_new_kind, 'width_carbody')
-                eleW.text = '0'
+                elebottom.text = str(_bottom)
+                eleH = ET.SubElement(_new_kind, 'X_carbody')
+                eleH.text = '-1'
+                eleW = ET.SubElement(_new_kind, xOutlineWidth[1:])
+                eleW.text = '-1'
             else:
                 if int(_new[0]) < int(_new[1]): #判断那个是顶部线，哪个是底部线
                     node.find(xOutlineTop[1:]).text = str(_new[0])
@@ -1736,21 +1738,51 @@ class calibration():
                 _nCar.set('modify_date', util._gettime(_type='file'))
         self.tree.write(self.calibrationFile)
 
-
     def readxml(self):
         root = self.tree.getroot()
         for _line in root:
             self.dictPhototype[_line.get('line')] = _line
             for _side in _line:
                 self.dictPhototype[_line.get('line') + '_' + _side.get('imgtype')] = _side
+
+    def rebuilt_TOP(self):
+        for key in self.dictPhototype.keys():
+            if 'T' in key:
+                _parent = self.dictPhototype[key]
+                xpath = ['t_top', 't_bottom']
+                for carz in _parent:
+                    try:
+                        v = [int(carz.find(x).text) for x in xpath]
+                        for node in xpath:
+                            carz.remove(carz.find(node))
+
+                        elebottom = ET.SubElement(carz, 'X_carbody')
+                        elebottom.text = '0'
+                        eletop = ET.SubElement(carz, 'Y_carbody')
+                        eletop.text = str(v[0])
+                        eleH = ET.SubElement(carz, 'height_carbody')
+                        eleH.text = str(v[1] - v[0] + 1)
+                        eleW = ET.SubElement(carz, 'width_carbody')
+                        eleW.text = '0'
+                        self.tree.write(self.calibrationFile)
+                    except Exception as e:
+                        continue
+
+
+
 def start():
     m = Tk()
     m.title('车型标定工具')
     _main = main(m)
     m.mainloop()
+
 def test():
-    c = calibration('F:/data/05车型标定文件/唐官屯/CarPositionInformation_唐官屯 - 副本.config')
-    c.build(1, '3', lTag='L')
+    f = '/home/sunyue/data/cpi  (复件).config'
+    if os.path.exists(f):
+        c = calibration(f)
+        c.rebuilt_TOP()
+    # c.build(1, '3', lTag='L')
+
 if __name__ == '__main__':
     start()
     # test()
