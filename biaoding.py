@@ -34,12 +34,12 @@ class const:
     DATA_TYPE_G = 32
     DATA_TYPE_T = 33
 class util:
-    @staticmethod
-    def _expand_tree(tr, root=None):
-        iids = tr.get_children(root)
-        for iid in iids:
-            tr.item(iid, open=True)
-            _expand_tree(tr, root=iid)
+    # @staticmethod
+    # def _expand_tree(tr, root=None):
+    #     iids = tr.get_children(root)
+    #     for iid in iids:
+    #         tr.item(iid, open=True)
+    #         util._expand_tree(tr, root=iid)
     @staticmethod
     def _gettime(_time=None, _type='socket'):
         """
@@ -563,14 +563,30 @@ class main():
                 _kinds.append(self.trGroup.item(iid)['text'])
         return _kinds
 
+    def read_temp_path_file(self, w=None):
+        if w is None:
+            if not os.path.exists('p.tmp'):
+                return os.path.join(sys.path[0])
+            with open('p.tmp', 'r') as fr:
+                r = fr.readline()
+                return r
+        else:
+            if w != '':
+                with open('p.tmp', 'w') as f:
+                    f.write(w)
+                self.allPics = []
+                self.currentPicIndex = 0
+
     def openPictureFolder(self):
         self.drawMode = 0
-        self.allPics = []
-        dirpath = askdirectory(initialdir=os.path.join(sys.path[0]), title='请选择图片文件夹')
-        self.currentPicIndex = 0
+
+        dirpath = askdirectory(initialdir=self.read_temp_path_file(), title='请选择图片文件夹')
+        self.read_temp_path_file(dirpath)
         if os.path.exists(dirpath) is True:
             for root, dirs, files in os.walk(dirpath, topdown=False):
-                self.allPics = [os.path.normpath(os.path.join(root, name)) for name in files]
+                for f in files:
+                    if f.split('.')[-1] == 'jpg':
+                        self.allPics.append(os.path.join(root, f))
             self.isPicsReady = True
             if self.calibrationFile is not None and self.calibrationHelper is not None:
                 self.display()
@@ -1345,7 +1361,10 @@ class main():
         return dict_frequency
 
     def _getDictKey(self, _k, v):
-        _id = _k + '_' + '_'.join(v)
+        if v is None:
+            _id = _k + '_None'
+        else:
+            _id = _k + '_' + '_'.join(v)
         return _id
 
     def analyzeCalibrationFile(self):
