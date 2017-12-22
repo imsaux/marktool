@@ -11,6 +11,7 @@ import tkinter as tk
 import ctypes
 
 class const:
+    NONE_CALIBRATION = 0
     CAR_CALIBRATION = 1
     AXEL_CALIBRATION = 2
     RAIL_CALIBRATION = 3
@@ -18,21 +19,11 @@ class const:
     OUTLINE_CALIBRATION = 5
     OUTLINE_CALIBRATION2 = 6
 
-    CAR_CALIBRATION_READ = 11
-    CAR_CALIBRATION_WRITE = 12
-
-    HANDLECOORDS_MODE_CALIBRATION_READ = 11
-    HANDLECOORDS_MODE_CALIBRATION_WRITE = 12
-    HANDLECOORDS_MODE_ORIGIN_IMAGE_OFFSET = 13
-    HANDLECOORDS_MODE_ORIGIN_IMAGE_SAVE = 14
-    HANDLECOORDS_MODE_ORIGIN_IMAGE_SHOW = 15
-
-    DISPLAY_MODE_ZOOM = 21
-    DISPLAY_MODE_ORIGIN = 22
-
     DATA_TYPE_Z = 31
     DATA_TYPE_G = 32
     DATA_TYPE_T = 33
+
+
 class util:
     # @staticmethod
     # def _expand_tree(tr, root=None):
@@ -59,9 +50,14 @@ class util:
             return t.strftime("%Y%m%d")
         else:
             return None
-class main():
-    def __init__(self, _mainobj):
-        self.win = _mainobj
+
+class logic():
+    pass
+
+class ui():
+    def __init__(self, _win):
+        self.logic = logic()
+        self.win = _win
         try:
             user32 = ctypes.windll.LoadLibrary('user32.dll')
             menu_height = user32.GetSystemMetrics(15)
@@ -73,7 +69,111 @@ class main():
         if os.name.upper() == 'NT':
             self.win.state('zoomed')
         self.data_init()
+        self.show()
+
+    def data_init(self):
+        self.load_pics = list()
+        self.load_pics_index = 0
+        self.pic_dir_name = None
+        self.calibration_file_dir_name = None
+        self.calibration_file_name = None
+        self._menu = None
+        self.draw_mode = const.NONE_CALIBRATION
+
+    def show(self):
+        self.show_size = (self.win_size[0], self.win_size[1] * 0.9)
+        self.ctrl_size = (self.win_size[0], self.win_size[1] * 0.1)
+
+        self.canvas = tk.Canvas(self.win, bg='#C7EDCC', width=self.show_size[0], height=self.show_size[1])
+        self.canvas.place(x=0, y=0)
+
+        self.control_frame = tk.Frame(self.win, width=self.ctrl_size[0], height=self.ctrl_size[1], bg='#C7EDCC')
+        self.control_frame.place(x=0, y=self.show_size[1])
+
+        self.btLastPic = tk.Button(self.control_frame, text='上一张', command=self.show_last)
+        self.btLastPic.config(width=10, height=1)
+        self.btLastPic.pack(side='left')
+
+        self.btNextPic = tk.Button(self.control_frame, text='下一张', command=self.show_next)
+        self.btNextPic.config(width=10, height=1)
+        self.btNextPic.pack(side='left')
+
+        self.btMainPic = tk.Button(self.control_frame, text='保存', command=self.save)
+        self.btMainPic.config(width=10, height=1)
+        self.btMainPic.pack(side='left')
+
+        self.lbPicInfo = tk.Label(self.control_frame)
+        self.lbPicInfo.pack(side=LEFT)
+
+        rootMenu = tk.Menu(self.win)
+        sourceMenu = tk.Menu(rootMenu, tearoff=0)
+        sourceMenu.add_command(label='标定文件', command=self.openCalibrationFile)
+        sourceMenu.add_command(label='图片', command=self.openPictureFolder)
+        rootMenu.add_cascade(label='加载', menu=sourceMenu)
+        self.win.config(menu=rootMenu)
+        self.setEventBinding()
+
+    def setEventBinding(self):
+        self.canvas.bind('<Motion>', self.event_mouse_motion)
+        self.canvas.bind('<Button-3>', self.event_mouse_button_right)
+        self.canvas.bind('<Button-1>', self.event_mouse_button_left)
+        self.canvas.bind('<ButtonRelease-1>', self.event_mouse_button_left_release)
+        self.canvas.bind('<MouseWheel>', self.event_mouse_wheel)
+        self.win.bind('<KeyRelease>', self.event_keyboard_key_release)
+        self.win.bind('<Key>', self.event_keyboard_key_down)
+        self.canvas.bind('<B1-Motion>', self.event_mouse_button_left_motion)
+
+
+    def show_next(self):
+        pass
+
+    def show_last(self):
+        pass
+
+    def event_keyboard_key_release(self, event):
+        pass
+
+    def event_keyboard_key_down(self, event):
+        pass
+
+    def event_mouse_wheel(self, event):
+        pass
+
+    def event_mouse_button_left(self, event):
+        pass
+
+    def event_mouse_button_right(self, event):
+        pass
+
+    def event_mouse_motion(self, event):
+        pass
+
+    def event_mouse_button_left_motion(self, event):
+        pass
+
+    def event_mouse_button_left_release(self, event):
+        pass
+
+
+
+
+
+class main():
+    def __init__(self, _mainobj):
+        self.win = _mainobj
+        try:
+            user32 = ctypes.windll.LoadLibrary('user32.dll')
+            menu_height = user32.GetSystemMetrics(15)
+            title_height = user32.GetSystemMetrics(4)
+        except Exception as e:
+            menu_height = 20
+            title_height = 20
+        self.win_size = (self.win.winfo_screenwidth(), self.win.winfo_screenheight()-menu_height-title_height-20)
+        if os.name.upper() == 'NT':
+            self.win.state('zoomed')
+        self.data_init()
         self.ui_init()
+
     def data_init(self, init=True):
         self.currentPic = None
         self.currentPicInfo = list()
