@@ -9,6 +9,7 @@ from tkinter.filedialog import *
 import tkinter.ttk as ttk
 import tkinter as tk
 import ctypes
+from collections import defaultdict
 
 class const:
     NONE_CALIBRATION = 0
@@ -22,6 +23,24 @@ class const:
     DATA_TYPE_Z = 31
     DATA_TYPE_G = 32
     DATA_TYPE_T = 33
+
+    CALC_MODE_CALIBRATION_O2Z = 41
+    CALC_MODE_CALIBRATION_Z2O = 42
+    CALC_MODE_IMAGE_O2Z = 43
+    CALC_MODE_IMAGE_Z2O = 44
+
+    SHOW_MODE_ORIGIN = 51
+    SHOW_MODE_ZOOM = 52
+
+    DRAW_MODE_NONE = 61
+    DRAW_MODE_CALIBRATION = 62
+    DRAW_MODE_AXEL = 63
+    DRAW_MODE_WHEEL = 64
+    DRAW_MODE_RAIL = 65
+    DRAW_MODE_OUTLINE = 66
+
+    MARK_MODE_ALL = 71
+    MARK_MODE_AUTO = 72
 
 
 class util:
@@ -52,7 +71,48 @@ class util:
             return None
 
 class logic():
-    pass
+    def __init__(self, _canvas, _import_pics):
+        self.canvas = _canvas
+        self.pics = _import_pics
+        self.canvas_objs = defaultdict(list)
+        self.show_mode = const.SHOW_MODE_ZOOM
+        self.draw_mode = const.DRAW_MODE_NONE
+        self.mark_mode = const.MARK_MODE_ALL
+        self.current_index = 0
+
+    def show_pic(self):
+        # 清理绘图
+        pass
+
+    def show_resize(self):
+        pass
+
+    def show_clear(self, items=None):
+        _items = list(items) if items is not None else ['axel', 'rail', 'wheel', 'text', 'outline']
+        for item in _items:
+            for obj in self.canvas_objs[item]:
+                self.canvas.delete(obj)
+            self.canvas_objs[item].clear()
+
+
+    def calc_coords(self, x, y, w, h, mode=const.CALC_MODE_IMAGE_O2Z):
+        if len(self.canvas_objs['img']) == 0:
+            return False
+        _bbox = self.canvas.bbox(self.canvas_objs['img'][0])
+        if mode == const.CALC_MODE_CALIBRATION_O2Z:
+            pass
+
+        elif mode == const.CALC_MODE_CALIBRATION_Z2O:
+            pass
+
+        elif mode == const.CALC_MODE_IMAGE_O2Z:
+            pass
+
+        elif mode == const.CALC_MODE_IMAGE_Z2O:
+            pass
+
+        else:
+            return x, y, w, h
 
 class ui():
     def __init__(self, _win):
@@ -214,7 +274,6 @@ class main():
         self.OUTLINE_MIDDLE_ID = list()
         self.POINT_ID = list()
         self.backupShowPics = None
-        self.display_mode = const.DISPLAY_MODE_ZOOM
         self.CONSULT_ID = list()
         self.CTRL = False
         self.isAutoCalibration = False
@@ -292,7 +351,7 @@ class main():
         # trGroup_vbar.pack(side=RIGHT, fill=Y)
         # _group_frame.place(x=40, y=25)
         
-        self.setEventBinding(mode=self.display_mode)
+        self.setEventBinding()
         # self.updateStatusInfo()
     
     def updateStatusInfo(self):
@@ -309,7 +368,7 @@ class main():
             self.FULL_SCREEN = False
         self.show()
 
-    def setEventBinding(self, mode=const.DISPLAY_MODE_ORIGIN):
+    def setEventBinding(self):
         self.canvas.bind('<Motion>', self.eCanvasMotion)
         self.canvas.bind('<Button-3>', self.eCanvasButton_3)
         self.canvas.bind('<Button-1>', self.eCanvasButton_1)
@@ -678,7 +737,7 @@ class main():
                 self.currentPicIndex = 0
 
     def openPictureFolder(self):
-        self.drawMode = 0
+        self.drawMode = const.NONE_CALIBRATION
 
         dirpath = askdirectory(initialdir=self.read_temp_path_file(), title='请选择图片文件夹')
         self.read_temp_path_file(dirpath)
