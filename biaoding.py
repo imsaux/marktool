@@ -70,6 +70,9 @@ class util:
         else:
             return None
 
+
+
+
 class logic():
     def __init__(self, _canvas, _import_pics):
         self.canvas = _canvas
@@ -79,6 +82,38 @@ class logic():
         self.draw_mode = const.DRAW_MODE_NONE
         self.mark_mode = const.MARK_MODE_ALL
         self.current_index = 0
+
+    def get_pic_info(self, _mode, _index=None):
+        _file = None
+        if _index is None:
+            _file = self.pics[self.current_index]
+        else:
+            _file = self.pics[_index]
+
+        try:
+            _lst = os.path.basename(_file).split('_')
+
+            if _mode == 'line':
+                return str(int(_lst[1].split('.')[3]) - 1)
+
+
+            elif _mode == 'kind':
+                _kind = _lst[0]
+                if '#' in _lst[0]:
+                    _kind = _lst[0].replace('#', '*')
+                return _kind
+
+            elif _mode == 'side':
+                if _lst[3][0].upper() == 'Z':
+                    return _lst[3][1]
+                else:
+                    return _lst[3][0]
+
+            else:
+                return None
+
+        except:
+            return None
 
     def show_pic(self):
         # 清理绘图
@@ -93,7 +128,6 @@ class logic():
             for obj in self.canvas_objs[item]:
                 self.canvas.delete(obj)
             self.canvas_objs[item].clear()
-
 
     def calc_coords(self, x, y, w, h, mode=const.CALC_MODE_IMAGE_O2Z):
         if len(self.canvas_objs['img']) == 0:
@@ -114,6 +148,30 @@ class logic():
         else:
             return x, y, w, h
 
+    def set_mode_option(self, mode, _new_option):
+        pass
+
+    def display_carriage(self):
+        self._display('carriage', None)
+
+    def display_axel(self):
+        self._display('axel', None)
+
+    def display_rail(self):
+        self._display('rail', None)
+
+    def display_wheel(self):
+        self._display('wheel', None)
+
+    def display_outline(self):
+        self._display('outline', None)
+
+
+    def _display(self, mode, params):
+        pass
+
+
+
 class ui():
     def __init__(self, _win):
         self.logic = logic()
@@ -123,7 +181,7 @@ class ui():
             menu_height = user32.GetSystemMetrics(15)
             title_height = user32.GetSystemMetrics(4)
         except Exception as e:
-            menu_height = 20 ## todo 怎么处理跨平台获取bar高度
+            menu_height = 20 ## todo 怎么处理跨平台时获取bar高度
             title_height = 20
         self.win_size = (self.win.winfo_screenwidth(), self.win.winfo_screenheight()-menu_height-title_height-20)
         if os.name.upper() == 'NT':
