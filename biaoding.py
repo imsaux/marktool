@@ -256,6 +256,11 @@ class main():
             self.coords_zoom.clear()
             self.coords_zoom.append((_p1, _p2))
 
+    def full_to_zoom(self, l_data):
+        return [d*self.showZoomRatio for d in l_data]
+
+    def zoom_to_full(self, l_data):
+        return [round(d/self.showZoomRatio) for d in l_data]
 
     def eCanvasMouseWheel(self, event):
         _move = [0, 0]
@@ -270,7 +275,6 @@ class main():
             self.FULL_SCREEN = False
             # self._point_to_zoom()
         elif  os.name == 'posix' and event.num == 5 and not self.FULL_SCREEN:
-            _bbox = self.canvas.bbox(self.paint['IMG'][0])
             self.FULL_SCREEN = True
             # self._point_to_full()
             _move = self._zoom_to_point(event.x, event.y)
@@ -535,6 +539,8 @@ class main():
             # x, y, w, h = self.calc(const.CALC_SAVE_CALIBRATION)
             bbox_car = self.canvas.bbox(self.paint['CAR'][0])
             _img = self.canvas.bbox(self.paint['IMG'][0])
+            _group_kinds = self.get_current_group()
+
             if not self.FULL_SCREEN:
                 x = round((bbox_car[0] - _img[0])/self.showZoomRatio)
                 y = round((bbox_car[1] - _img[1])/self.showZoomRatio)
@@ -557,14 +563,11 @@ class main():
                 self.autoCalibrationParams[1] = y - self.oldCalibrationInfo[1]
                 self.autoCalibrationParams[2] = w / self.oldCalibrationInfo[2]
                 self.autoCalibrationParams[3] = h / self.oldCalibrationInfo[3]
-                _group_kinds = self.get_current_group()
-                _lst = list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))
+                _lst = [k.split('_')[2] for k in list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))]
                 if len(_lst) > 0:
                     self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
                 self.autoCalibrationParams = [0, 0, 1, 1]
                 self.analyzeCalibrationFile()
-
-
         if self.currentPic not in self.source['T'] and len(self.paint['AXEL']) > 0 and self.paint['AXEL'][0] not in self.history['AXEL']:
             self.calibrationHelper.axel(
                 self.currentPicInfo[1], 
@@ -618,7 +621,7 @@ class main():
         self.source['Z'] = []
         self.show_pics = []
         self.currentPicIndex = 0
-        if len(dir) > 0 and os.path.exists(dir):
+        if dir != '' and os.path.exists(dir):
             for root, dirs, files in os.walk(dir, topdown=False):
                 for f in files:
                     if os.path.splitext(f)[1].upper() == '.JPG':
@@ -860,6 +863,7 @@ class main():
         _side = self.currentPicInfo[2]
         _line = str(self.currentPicInfo[1])
         _w = self.origin_img.size[0]
+        _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
         _wheelInfo = self._getpicwheelinfo()
         _Z = True if self.currentPic in self.source['Z'] else False
         _offset = int(self.calibrationHelper.axel(_line, _side, Z=_Z))
@@ -872,9 +876,9 @@ class main():
             if not self.FULL_SCREEN:
                 axel_id = self.canvas.create_line(
                     (_axel-_offset)*self.showZoomRatio,
-                    self.show_img.size[1] + self.imgPosition[1],
+                    self.show_img.size[1] + _bbox_img[1],
                     (_axel-_offset)*self.showZoomRatio,
-                    self.imgPosition[1],
+                    _bbox_img[1],
                     width=2,
                     fill='yellow', dash=(6,6))
                 self.paint['AXEL'].append(axel_id)
@@ -882,9 +886,9 @@ class main():
             else:
                 axel_id = self.canvas.create_line(
                     (_axel-_offset),
-                    self.show_img.size[1] + self.imgPosition[1],
+                    self.show_img.size[1] + _bbox_img[1],
                     (_axel-_offset),
-                    self.imgPosition[1],
+                    _bbox_img[1],
                     width=2,
                     fill='yellow', dash=(6,6))
                 self.paint['AXEL'].append(axel_id)
@@ -892,9 +896,9 @@ class main():
         if not self.FULL_SCREEN:
             wheel_id = self.canvas.create_line(
                 0,
-                _wheel * self.showZoomRatio + self.imgPosition[1],
-                self.imgPosition[2],
-                _wheel * self.showZoomRatio + self.imgPosition[1],
+                _wheel * self.showZoomRatio + _bbox_img[1],
+                _bbox_img[2],
+                _wheel * self.showZoomRatio + _bbox_img[1],
                 width=2,
                 fill='green'
             )
@@ -903,9 +907,9 @@ class main():
         else:
             wheel_id = self.canvas.create_line(
                 0,
-                _wheel + self.imgPosition[1],
-                self.imgPosition[2],
-                _wheel + self.imgPosition[1],
+                _wheel + _bbox_img[1],
+                _bbox_img[2],
+                _wheel + _bbox_img[1],
                 width=2,
                 fill='green'
             )
@@ -943,16 +947,16 @@ class main():
         _side = self.currentPicInfo[2]
         _line = str(self.currentPicInfo[1])
         _Z = True if self.currentPic in self.source['Z'] else False
-
+        _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
         _raily = int(self.calibrationHelper.rail(_line, _side, Z=_Z))
         #print('getrail() = %d' % (_raily,))
         if _raily != -1:
             if not self.FULL_SCREEN:
                 rail_id = self.canvas.create_line(
                     0,
-                    _raily * self.showZoomRatio + self.imgPosition[1],
-                    self.imgPosition[2],
-                    _raily * self.showZoomRatio + self.imgPosition[1],
+                    _raily * self.showZoomRatio + _bbox_img[1],
+                    _bbox_img[2],
+                    _raily * self.showZoomRatio + _bbox_img[1],
                     width = 2,
                     fill = 'blue'
                 )
@@ -961,9 +965,9 @@ class main():
             else:
                 rail_id = self.canvas.create_line(
                     0,
-                    _raily + self.imgPosition[1],
-                    self.imgPosition[2],
-                    _raily + self.imgPosition[1],
+                    _raily + _bbox_img[1],
+                    _bbox_img[2],
+                    _raily + _bbox_img[1],
                     width = 2,
                     fill = 'blue'
                 )
@@ -1064,6 +1068,7 @@ class main():
       #print('click -> ', event.x, event.y)
         if self.CTRL: return
         _bbox = self.canvas.bbox(self.paint['IMG'][0])
+
         if self.drawMode == const.CAR_CALIBRATION:
             if len(self.coords_zoom) > 1:
                 self.coords_zoom.clear()
@@ -1097,8 +1102,6 @@ class main():
                     )
                 )
             self._create_point(event.x, event.y, 2, fill='red')
-          #print('zoom ->', self.coords_zoom)
-          #print('full ->', self.coords_full)
             if not self.FULL_SCREEN and len(self.coords_zoom) >= 2:
                 self.cleanCanvasByType(self.paint['CAR'], self.canvas)
                 self.cleanCanvasByType(self.paint['POINT'], self.canvas)
@@ -1121,39 +1124,58 @@ class main():
                     outline='red'
                 )
                 self.paint['CAR'].append(_new)
-
-
         elif self.drawMode == const.AXEL_CALIBRATION:
             self.cleanCanvasByType(self.paint['AXEL'], self.canvas)
             self.cleanCanvasByType(self.paint['WHEEL'], self.canvas)
             _side = self.currentPicInfo[2]
-            _line = str(self.currentPicInfo[1])
-            _kind = self.currentPicInfo[0]
             _w = self.origin_img.size[0]
             self.paint['WHEEL'].append(
                 self.canvas.create_line(0, event.y, self.canvas.bbox(self.paint['IMG'][0])[2], event.y, width=2, fill='yellow')
             )
-            self.axel_y = round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) / self.showZoomRatio)
-            
+            if not self.FULL_SCREEN:
+                self.axel_y = round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) / self.showZoomRatio)
+            else:
+                self.axel_y = event.y - self.canvas.bbox(self.paint['IMG'][0])[1]
+
             _wheel = self._getpicwheelinfo()
             _lst_axel = _wheel[:len(_wheel)-_wheel.count(-1)]
+
             if len(_lst_axel) > 0:
                 if _side == 'R':
                     _lst_axel.reverse()
                     _lst_axel = [_w - x for x in _lst_axel]
-                    _x_offset = round(_lst_axel[0]*self.showZoomRatio) - event.x
+                    if not self.FULL_SCREEN:
+                        _x_offset = round(_lst_axel[0]*self.showZoomRatio) - event.x
+                    else:
+                        _x_offset = _lst_axel[0] - event.x
                 if _side == 'L':
-                    _x_offset = round(_lst_axel[2]*self.showZoomRatio) - event.x
-                self.axel_x_offset = round(_x_offset/self.showZoomRatio)
+                    if not self.FULL_SCREEN:
+                        _x_offset = round(_lst_axel[2]*self.showZoomRatio) - event.x
+                    else:
+                        _x_offset = _lst_axel[2] - event.x
+                if not self.FULL_SCREEN:
+                    self.axel_x_offset = round((_x_offset + _bbox[0])/self.showZoomRatio)
+                else:
+                    self.axel_x_offset = _x_offset + _bbox[0]
                 for _axel in _lst_axel:
-                    self.paint['AXEL'].append(self.canvas.create_line(
-                        (round(_axel*self.showZoomRatio) - _x_offset,
-                        self.show_img.size[1] + self.imgPosition[1]),
-                        (round(_axel*self.showZoomRatio) - _x_offset,
-                        self.imgPosition[1]), width=2, fill='yellow'))
+                    if not self.FULL_SCREEN:
+                        self.paint['AXEL'].append(self.canvas.create_line(
+                            (round(_axel*self.showZoomRatio) - _x_offset,
+                            self.show_img.size[1] + _bbox[1]),
+                            (round(_axel*self.showZoomRatio) - _x_offset,
+                             _bbox[1]), width=2, fill='yellow'))
+                    else:
+                        self.paint['AXEL'].append(self.canvas.create_line(
+                            (_axel - _x_offset,
+                            self.show_img.size[1] + _bbox[1]),
+                            (_axel - _x_offset,
+                             _bbox[1]), width=2, fill='yellow'))
         elif self.drawMode == const.RAIL_CALIBRATION:
             self.cleanCanvasByType(self.paint['RAIL'], self.canvas)
-            self.rail_y = round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) / self.showZoomRatio)
+            if not self.FULL_SCREEN:
+                self.rail_y = round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) / self.showZoomRatio)
+            else:
+                self.rail_y = event.y - self.canvas.bbox(self.paint['IMG'][0])[1]
             self.paint['RAIL'].append(
                 self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
             )
@@ -1163,21 +1185,17 @@ class main():
                 self.outlines[1] = 0
                 self.cleanCanvasByType(self.paint['OUTLINE'], self.canvas)
             if self.outlines[0] == 0:
-                self.outlines[0] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+                if not self.FULL_SCREEN:
+                    self.outlines[0] = round((event.y - _bbox[1]) / self.showZoomRatio)
+                else:
+                    self.outlines[0] = event.y - _bbox[1]
             elif self.outlines[1] == 0:
-                self.outlines[1] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
+                if not self.FULL_SCREEN:
+                    self.outlines[1] = round((event.y - _bbox[1]) / self.showZoomRatio)
+                else:
+                    self.outlines[1] = event.y - _bbox[1]
             # print(self.outlines)
             self.paint['OUTLINE'].append(
-                self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-            )
-        elif self.drawMode == const.OUTLINE_CALIBRATION2:
-            if self.outlines[2] != 0 or len(self.OUTLINE_MIDDLE_ID) > 0:
-                self.outlines[2] = 0
-                self.cleanCanvasByType(self.OUTLINE_MIDDLE_ID, self.canvas)
-            if self.outlines[2] == 0:
-                self.outlines[2] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-            # print(self.outlines)
-            self.OUTLINE_MIDDLE_ID.append(
                 self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
             )
 
