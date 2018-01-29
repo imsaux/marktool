@@ -46,7 +46,7 @@ class const:
         KEY_CTRL = 37
         KEY_ESC = 9
     if os.name == 'nt':
-        KEY_CTRL = 0
+        KEY_CTRL = 17
         KEY_ESC = 0
 
 class util:
@@ -213,8 +213,10 @@ class main():
         self.rootMenu.add_command(label='保存', command=self.save)
 
         test_menu = tk.Menu(self.rootMenu, tearoff=0)
-        test_menu.add_command(label='鼠标滚轮：缩放')
-        test_menu.add_command(label='鼠标右键：标定类型',)
+        test_menu.add_command(label='鼠标滚轮-向下：缩小')
+        test_menu.add_command(label='鼠标滚轮-向上：放大')
+        test_menu.add_command(label='鼠标右键：选择标定类型',)
+        test_menu.add_command(label='鼠标左键：画点',)
         test_menu.add_command(label='Ctrl + 鼠标左键：拖动',)
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
@@ -266,17 +268,13 @@ class main():
         _move = [0, 0]
         if os.name == 'nt' and event.delta > 0 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
-            # self._point_to_full()
             _move = self._zoom_to_point(event.x, event.y)
         elif  os.name == 'nt' and event.delta < 0 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
-            # self._point_to_zoom()
         if os.name == 'posix' and event.num == 4 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
-            # self._point_to_zoom()
         elif  os.name == 'posix' and event.num == 5 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
-            # self._point_to_full()
             _move = self._zoom_to_point(event.x, event.y)
 
         self.show()
@@ -598,7 +596,7 @@ class main():
         try:
             c.read('biaoding.ini')
             if new is not None:
-                c.set(new[0], new[1], new[2])
+                c.set(new[0], new[1], new[2].encode().decode())
                 c.write(open("biaoding.ini", "w"))
 
             if os.path.exists(c.get('source', 'calibration_file')):
@@ -630,11 +628,11 @@ class main():
     def openPictureFolder(self):
         self.drawMode = const.NONE_CALIBRATION
         dirpath = askdirectory(initialdir=self._dir, title='请选择图片文件夹')
-        self.config(new=('source', 'pic_dir', dirpath))
-
-        self._load_pics(dirpath)
-        if self.calibrationHelper is not None:
-            self.display()
+        if dirpath != '' and os.path.exists(dirpath):
+            self.config(new=('source', 'pic_dir', dirpath))
+            self._load_pics(dirpath)
+            if self.calibrationHelper is not None:
+                self.display()
 
     def display(self, pic=None):
         if self.calibrationHelper is None:
