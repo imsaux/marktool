@@ -73,8 +73,8 @@ class util:
 
 class main():
     def __init__(self, _mainobj):
-        self.logger = self._getLogger()
-        self.logger.info('启动')
+        # self.logger = self._getLogger()
+        # self.logger.info('启动')
         self.win = _mainobj
         try:
             user32 = ctypes.windll.LoadLibrary('user32.dll')
@@ -998,6 +998,8 @@ class main():
     def showNextPic(self):
         if -1 < self.currentPicIndex + 1 < len(self.show_pics):
             self.currentPicIndex += 1
+            self.coords_zoom.clear()
+            self.coords_full.clear()
             self.setCurrnetPic(self.show_pics[self.currentPicIndex])
             self.show()
             self.update_title()
@@ -1005,6 +1007,8 @@ class main():
     def showLastPic(self):
         if -1 < self.currentPicIndex - 1 < len(self.show_pics):
             self.currentPicIndex -= 1
+            self.coords_zoom.clear()
+            self.coords_full.clear()
             self.setCurrnetPic(self.show_pics[self.currentPicIndex])
             self.show()
             self.update_title()
