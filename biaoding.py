@@ -219,6 +219,7 @@ class main():
         test_menu.add_command(label='鼠标左键：画点',)
         test_menu.add_command(label='Ctrl + 鼠标左键：拖动',)
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
+        self.rootMenu.add_command(label='版本：r20180130.1721')
 
         self.win.config(menu=self.rootMenu)
 
@@ -235,8 +236,8 @@ class main():
         _bbox = self.canvas.bbox(self.paint['IMG'][0])
         pic_x = (x - _bbox[0]) / self.showZoomRatio
         pic_y = (y - _bbox[1]) / self.showZoomRatio
-        move_x = pic_x - self.show_size[0]/2
-        move_y = pic_y - self.show_size[1]/2
+        move_x = pic_x - round(self.show_size[0]* (x / self.show_size[0]))
+        move_y = pic_y - round(self.show_size[1]* (y / self.show_size[1]))
         return move_x, move_y
 
     def _point_to_full(self):
@@ -306,9 +307,9 @@ class main():
         elif os.name == 'posix':
             self.canvas.bind('<Button-4>', self.eCanvasMouseWheel)
             self.canvas.bind('<Button-5>', self.eCanvasMouseWheel)
-        self.win.bind('<KeyRelease>', self.eKeyChanged)
-        self.win.bind('<Key>', self.eKeyChanged)
-        self.canvas.bind('<B1-Motion>', self.drag)
+        # self.win.bind('<KeyRelease>', self.eKeyChanged)
+        # self.win.bind('<Key>', self.eKeyChanged)
+        self.canvas.bind('<Control-B1-Motion>', self.drag)
 
     def eKeyChanged(self, event):
         print(event.keycode)
@@ -329,32 +330,34 @@ class main():
 
 
     def drag(self, event):
-        if self.CTRL:
+        if event.state != 268:
+            return
+
+        if not self.FULL_SCREEN:
+            zoom_offset_x = event.x - self.zoom_last_x
+            zoom_offset_y = event.y - self.zoom_last_y
+            full_offset_x = round(event.x/self.showZoomRatio) - self.full_last_x
+            full_offset_y = round(event.y/self.showZoomRatio) - self.full_last_y
+        else:
+            zoom_offset_x = round(event.x*self.showZoomRatio) - self.full_last_x
+            zoom_offset_y = round(event.y*self.showZoomRatio) - self.full_last_y
+            full_offset_x = event.x - self.full_last_x
+            full_offset_y = event.y - self.full_last_y
+        for obj in self.canvas.find_all():
             if not self.FULL_SCREEN:
-                zoom_offset_x = event.x - self.zoom_last_x
-                zoom_offset_y = event.y - self.zoom_last_y
-                full_offset_x = round(event.x/self.showZoomRatio) - self.full_last_x
-                full_offset_y = round(event.y/self.showZoomRatio) - self.full_last_y
+                self.bbox_move(zoom_offset_x, zoom_offset_y, specify=obj)
             else:
-                zoom_offset_x = round(event.x*self.showZoomRatio) - self.full_last_x
-                zoom_offset_y = round(event.y*self.showZoomRatio) - self.full_last_y
-                full_offset_x = event.x - self.full_last_x
-                full_offset_y = event.y - self.full_last_y
-            for obj in self.canvas.find_all():
-                if not self.FULL_SCREEN:
-                    self.bbox_move(zoom_offset_x, zoom_offset_y, specify=obj)
-                else:
-                    self.bbox_move(full_offset_x, full_offset_y, specify=obj)
-            if not self.FULL_SCREEN:
-                self.zoom_last_x = event.x
-                self.zoom_last_y = event.y
-                self.full_last_x = round(event.x / self.showZoomRatio)
-                self.full_last_y = round(event.y / self.showZoomRatio)
-            else:
-                self.zoom_last_x = round(event.x * self.showZoomRatio)
-                self.zoom_last_y = round(event.y * self.showZoomRatio)
-                self.full_last_x = event.x
-                self.full_last_y = event.y
+                self.bbox_move(full_offset_x, full_offset_y, specify=obj)
+        if not self.FULL_SCREEN:
+            self.zoom_last_x = event.x
+            self.zoom_last_y = event.y
+            self.full_last_x = round(event.x / self.showZoomRatio)
+            self.full_last_y = round(event.y / self.showZoomRatio)
+        else:
+            self.zoom_last_x = round(event.x * self.showZoomRatio)
+            self.zoom_last_y = round(event.y * self.showZoomRatio)
+            self.full_last_x = event.x
+            self.full_last_y = event.y
 
     def showInfo(self):
         if self.calibrationHelper is None: return
@@ -616,7 +619,7 @@ class main():
                 self._dir = c.get('source', 'pic_dir')
                 self._load_pics(self._dir)
             if c.get('temp', 'index') != '':
-                self._index = int(c.get('temp', 'index'))
+                self.currentPicIndex = int(c.get('temp', 'index'))
             if new is None and self.calibrationHelper is not None:
                 self.analyzeCalibrationFile()
                 self.display()
@@ -638,7 +641,7 @@ class main():
     def openPictureFolder(self):
         self.drawMode = const.NONE_CALIBRATION
         dirpath = askdirectory(initialdir=self._dir, title='请选择图片文件夹')
-        if dirpath != '' and os.path.exists(dirpath):
+        if dirpath not in ['', '.'] and os.path.exists(dirpath):
             self.config(new=('source', 'pic_dir', dirpath))
             self._load_pics(dirpath)
             if self.calibrationHelper is not None:
@@ -655,7 +658,7 @@ class main():
             if len(self.source['T']) > 0:
                 self.show_pics.extend(self.source['T'])
         if len(self.show_pics) > 0:
-            if pic is None:
+            if pic is None and 0 <= self.currentPicIndex <=len(self.show_pics) - 1:
                 self.setCurrnetPic(self.show_pics[self.currentPicIndex])
             else:
                 self.setCurrnetPic(pic)
@@ -665,7 +668,7 @@ class main():
         self.isCalibrationFileReady = False
         self.data_init(init=False)
         _file_path = os.path.normpath(askopenfilename(initialdir=self._file, title='请选择标定文件'))
-        if len(_file_path) > 0 and os.path.exists(_file_path):
+        if _file_path.split('.')[-1] == 'config' and os.path.exists(_file_path):
             self.config(new=('source', 'calibration_file', _file_path))
             self.calibrationHelper = calibration(_file_path)
             self.handleCarPositionfile()
@@ -998,19 +1001,19 @@ class main():
     def showNextPic(self):
         if -1 < self.currentPicIndex + 1 < len(self.show_pics):
             self.currentPicIndex += 1
+            self.config(new=('temp', 'index', str(self.currentPicIndex)))
             self.coords_zoom.clear()
             self.coords_full.clear()
-            self.setCurrnetPic(self.show_pics[self.currentPicIndex])
-            self.show()
+            self.display()
             self.update_title()
 
     def showLastPic(self):
         if -1 < self.currentPicIndex - 1 < len(self.show_pics):
             self.currentPicIndex -= 1
+            self.config(new=('temp', 'index', str(self.currentPicIndex)))
             self.coords_zoom.clear()
             self.coords_full.clear()
-            self.setCurrnetPic(self.show_pics[self.currentPicIndex])
-            self.show()
+            self.display()
             self.update_title()
             
     def setCarCalibration(self):
@@ -1078,7 +1081,8 @@ class main():
 
     def eCanvasButton_1(self, event):
       #print('click -> ', event.x, event.y)
-        if self.CTRL: return
+        if event.state != 8:
+            return
         _bbox = self.canvas.bbox(self.paint['IMG'][0])
 
         if self.drawMode == const.CAR_CALIBRATION:
