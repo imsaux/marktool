@@ -269,17 +269,27 @@ class main():
         if os.name == 'nt' and event.delta > 0 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
             _move = self._zoom_to_point(event.x, event.y)
+            self.show()
+            self.bbox_move(-_move[0], -_move[1])
+            self.display_unsaved_rectangle()
+
         elif  os.name == 'nt' and event.delta < 0 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
+            self.show()
+            # self.bbox_move(-_move[0], -_move[1])
+            self.display_unsaved_rectangle()
         if os.name == 'posix' and event.num == 4 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
+            self.show()
+            # self.bbox_move(-_move[0], -_move[1])
+            self.display_unsaved_rectangle()
         elif  os.name == 'posix' and event.num == 5 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
             _move = self._zoom_to_point(event.x, event.y)
+            self.show()
+            self.bbox_move(-_move[0], -_move[1])
+            self.display_unsaved_rectangle()
 
-        self.show()
-        self.bbox_move(-_move[0], -_move[1])
-        self.display_unsaved_rectangle()
 
     # todo 分车型标定（使用该功能后，将每种车型仅显示一张）
     # todo 定位至最近的新增车型
