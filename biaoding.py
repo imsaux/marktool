@@ -340,7 +340,7 @@ class main():
 
 
     def drag(self, event):
-        if os.name == 'nt' and event.state != 268:
+        if os.name == 'nt' and event.state != 1032:
             return
         if os.name == 'posix' and event.state != 1024:
             return
