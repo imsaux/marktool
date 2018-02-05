@@ -703,7 +703,10 @@ class main():
 
     def openPictureFolder(self):
         self.drawMode = const.NONE_CALIBRATION
-        self.open_dir = askdirectory(initialdir=self._dir, title='请选择图片文件夹')
+        try:
+            self.open_dir = askdirectory(initialdir=self._dir, title='请选择图片文件夹')
+        except:
+            self.open_dir = askdirectory(title='请选择图片文件夹')
         if isinstance(self.open_dir, str) and os.path.exists(self.open_dir):
             self.config(mode=2)
             self._load_pics(self.open_dir)
@@ -737,7 +740,10 @@ class main():
             self.update_title()
 
     def openCalibrationFile(self):
-        _file_path = askopenfilename(initialdir=os.path.dirname(self._file), title='请选择标定文件')
+        try:
+            _file_path = askopenfilename(initialdir=os.path.dirname(self._file), title='请选择标定文件')
+        except:
+            _file_path = askopenfilename(title='请选择标定文件')
         if _file_path.split('.')[-1] == 'config' and os.path.exists(_file_path):
             self.calibrationHelper = calibration(_file_path)
             self.calibrationFile = _file_path
