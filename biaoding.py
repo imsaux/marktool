@@ -211,17 +211,17 @@ class main():
         self.rootMenu = tk.Menu(self.win)
         self.rootMenu.add_command(label='加载标定', command=self.openCalibrationFile)
         self.rootMenu.add_command(label='加载图片', command=self.openPictureFolder)
-        # self.rootMenu.add_command(label='上一张', command=self.showLastPic)
-        # self.rootMenu.add_command(label='下一张', command=self.showNextPic)
-        # self.rootMenu.add_command(label='保存', command=self.save)
 
         test_menu = tk.Menu(self.rootMenu, tearoff=0)
         test_menu.add_command(label='鼠标滚轮-向下：缩小')
         test_menu.add_command(label='鼠标滚轮-向上：放大')
-        test_menu.add_command(label='鼠标右键：拖动',)
-        test_menu.add_command(label='鼠标左键：画点',)
+        test_menu.add_command(label='鼠标右键：拖动')
+        test_menu.add_command(label='鼠标左键：画点')
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
-        # self.rootMenu.add_command(label='版本：r20180130.1721')
+
+        about_menu = tk.Menu(self.rootMenu, tearoff=0)
+        about_menu.add_command(label='开发标识：r201800206.0926')
+        self.rootMenu.add_cascade(label='关于', menu=about_menu)
 
         self.win.config(menu=self.rootMenu)
 
@@ -231,7 +231,7 @@ class main():
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+75, y=self.show_size[1]-55)
-        Label(self.win, text="版本：r201800205.0939").place(x=0, y=self.show_size[1]-50)
+        Label(self.win, text="版本：2.7.0.0").place(x=0, y=self.show_size[1]-50)
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
@@ -246,7 +246,6 @@ class main():
 
 
     def _zoom_to_point(self, x, y):
-        # (0, 0, w, h)
         if len(self.paint['IMG']) > 0:
             _bbox = self.canvas.bbox(self.paint['IMG'][0])
             pic_x = (x - _bbox[0]) / self.showZoomRatio
@@ -317,12 +316,9 @@ class main():
         elif os.name == 'posix':
             self.canvas.bind('<Button-4>', self.eCanvasMouseWheel)
             self.canvas.bind('<Button-5>', self.eCanvasMouseWheel)
-        # self.win.bind('<KeyRelease>', self.eKeyChanged)
-        # self.win.bind('<Key>', self.eKeyChanged)
         self.canvas.bind('<B3-Motion>', self.drag)
 
     def eKeyChanged(self, event):
-        print(event.keycode)
         if event.keycode == const.KEY_CTRL and self.CTRL:
             self.CTRL = False
         elif event.keycode == const.KEY_CTRL and not self.CTRL:
