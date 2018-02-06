@@ -698,7 +698,8 @@ class main():
                         _name = str(f).split('_')
                         if len(_name) != 5:
                             continue
-                        if _name[0].isalnum() and re.match(r"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", _name[1]) and \
+                        # 2018-2-6 修改bug #623
+                        if _name[0].isprintable() and re.match(r"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", _name[1]) and \
                             _name[2].isdigit() and len(_name[2]) == 14 and (_name[3][0] in ('L', 'R', 'T') or _name[3][:2] in ('ZL', 'ZR')):
                             self.check_data_type(os.path.join(root, f))
 
@@ -1499,6 +1500,7 @@ class main():
             _id = _k + '_' + '_'.join(v)
         return _id
 
+    # 统计分组
     def analyzeCalibrationFile(self):
         for _line in self.calibrationHelper.dictPhototype.keys():
             if '_' not in _line:
@@ -1506,24 +1508,27 @@ class main():
             _group = self._getKinds(_line, self.algor_y_h)
             self.groupByCalibration[_line] = self._frequency(_group)
 
+    # 统计分组
     def _getKinds(self, _line, func):
         _kinds = list()
         for kind in self.calibrationHelper.dictPhototype[_line]:
             if kind.tag != 'carcz' or kind.get('cztype') == '': continue
             _kinds.append(str(kind.get('cztype')))
         return func(_line, _kinds)
-    
+
+    # 统计分组
     def algor_y_h(self, _line, kinds):
         vals = dict()
         _l = _line.split('_')[0]
         _s = _line.split('_')[1]
         for kind in kinds:
             if '#' in kind:
+                # 将车型部分中#替换为*
                 _curkind = kind.replace('#', '*')
             else:
                 _curkind = kind
             carbody = self.calibrationHelper.carbody(_curkind, _l, _s)
-            if carbody is None or carbody.count(-1) == 4 or 0 in [carbody[1], carbody[3]]:
+            if carbody is None or carbody.count(-1) == 4 or 0 in [carbody[1], carbody[3]]: # 过滤异常数据
                 try:
                     vals[_curkind[0]].append((_curkind, None))
                 except KeyError:
@@ -1531,8 +1536,9 @@ class main():
                 except:
                     vals['NONE'] = [('NONE', None)]
             else:
-                y = int(carbody[1]) / 2048
-                h = int(carbody[3]) / 2048
+                # 按车厢在图片中的高度及位置进行分组
+                y = int(carbody[1]) / 2048  # 位置
+                h = int(carbody[3]) / 2048  # 高度
                 v1 = str(round(y / self.step_value))
                 v2 = str(round(h / self.step_value))
                 try:
@@ -1704,9 +1710,9 @@ class calibration():
             if node is None:
                 _new_kind = ET.SubElement(_parent, 'carcz')
                 _new_kind.set('cztype', str(_kind))
-                _new_kind.set('create_date', util._gettime(_type='file'))
-                _new_kind.set('modify_date', util._gettime(_type='file'))
-                _new_kind.set('modify_mode', 'Manual')
+                # _new_kind.set('create_date', util._gettime(_type='file'))
+                # _new_kind.set('modify_date', util._gettime(_type='file'))
+                # _new_kind.set('modify_mode', 'Manual')
                 _x = ET.SubElement(_new_kind, 'X_carbody')
                 _x.text = str(_new[0])
                 _y = ET.SubElement(_new_kind, 'Y_carbody')
@@ -1721,8 +1727,8 @@ class calibration():
                 node.find('Y_carbody').text = str(_new[1])
                 node.find('width_carbody').text = str(_new[2])
                 node.find('height_carbody').text = str(_new[3])
-                node.set('modify_mode', 'Manual')
-                node.set('modify_date', util._gettime(_type='file'))
+                # node.set('modify_mode', 'Manual')
+                # node.set('modify_date', util._gettime(_type='file'))
             self.tree.write(self.calibrationFile)
 
     def axel(self, line, side, _new=None, Z=False):
