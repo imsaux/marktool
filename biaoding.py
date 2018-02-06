@@ -1160,13 +1160,14 @@ class main():
                 popmenu.add_command(label='  车 厢 标 定 ', command=self.setCarCalibration)
                 popmenu.add_command(label='  车 轴 标 定 ', command=self.setAxelCalibration)
                 popmenu.add_command(label='  铁 轨 标 定 ', command=self.setRailCalibration)
+                popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 80))
             if self.currentPic in self.source['Z']:
                 popmenu.add_command(label='  车 轴 标 定 ', command=self.setAxelCalibration)
                 popmenu.add_command(label='  铁 轨 标 定 ', command=self.setRailCalibration)
+                popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 60))
             if self.currentPic in self.source['T']:
                 popmenu.add_command(label='  轮 廓 标 定 ', command=self.setOutlineCalibration)
-                # popmenu.add_command(label='  中 线 标 定 ', command=self.setOutlineCalibration2)
-            popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 65))
+                popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 40))
 
     def eCanvasButton_1(self, event):
       #print('click -> ', event.x, event.y)
