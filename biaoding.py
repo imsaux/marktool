@@ -10,7 +10,7 @@ import tkinter.ttk as ttk
 import tkinter as tk
 import ctypes
 import pickle
-import configparser
+import re
 import logging
 import inspect
 
@@ -695,7 +695,10 @@ class main():
             for root, dirs, files in os.walk(dir, topdown=False):
                 for f in files:
                     if os.path.splitext(f)[1].upper() == '.JPG':
-                        self.check_data_type(os.path.join(root, f))
+                        _name = str(f).split('_')
+                        if _name[0].isalnum() and re.match(r"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", _name[1]) and \
+                            _name[2].isdigit() and len(_name[2]) == 14 and (_name[3][0] in ('L', 'R', 'T') or _name[3][:2] in ('ZL', 'ZR')):
+                            self.check_data_type(os.path.join(root, f))
 
     def openPictureFolder(self):
         self.drawMode = const.NONE_CALIBRATION
@@ -794,7 +797,6 @@ class main():
                 _line = 1
             elif _file[1] == '202.202.202.3':
                 _line = 2
-            # print(_file[0], _line, _file[3][0])
             return (_file[0], _line, _file[3][0])
         elif toget == 'ex':
             _file = _filename.split('.')
@@ -813,9 +815,6 @@ class main():
             else:
                 _side = _lst[3][0]
         except:
-            # print('exception')
-            # print(pic)
-            # print(_lst)
             _kind = None
             _line = None
             _side = None
@@ -911,7 +910,7 @@ class main():
             str(self.currentPicIndex + 1),
             len(self.show_pics),
             self.currentPic,
-            '【新增】' if self.oldCalibrationInfo.count(-1) == 4 else ''
+            '【新增】' if self.oldCalibrationInfo.count(-1) == 4 or self.oldCalibrationInfo.count(0) == 4 else ''
         )
         self.win.title(_info)
 
@@ -925,7 +924,7 @@ class main():
                 y=self.canvas.bbox(self.paint['IMG'][0])[1],
             )
             # _car = self.handleCoords(const.CAR_CALIBRATION_READ, self.canvas.bbox(self.paint['IMG'][0]))
-            if _car.count(-1) != 4:  # 不为初始值
+            if _car.count(-1) != 4 or _car.count(0) != 4:  # 不为初始值
                 x1, y1, x2, y2 = _car
                 _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo[2] * self.showZoomRatio /2)
                 _x2 = x2 - x1
@@ -1522,11 +1521,13 @@ class main():
             else:
                 _curkind = kind
             carbody = self.calibrationHelper.carbody(_curkind, _l, _s)
-            if carbody is None or carbody.count(-1) == 4: 
+            if carbody is None or carbody.count(-1) == 4 or 0 in [carbody[1], carbody[3]]:
                 try:
                     vals[_curkind[0]].append((_curkind, None))
                 except KeyError:
                     vals[_curkind[0]] = [(_curkind, None),]
+                except:
+                    vals['NONE'] = [('NONE', None)]
             else:
                 y = int(carbody[1]) / 2048
                 h = int(carbody[3]) / 2048
@@ -1662,7 +1663,7 @@ class calibration():
         货车+'T'
         """
         _kind = kind
-        if kind[0] != 'K' and (kind[0] == 'J' and 'JSQ' in kind):
+        if kind is not None and len(kind) > 0 and kind[0] != 'K' and (kind[0] == 'J' and 'JSQ' in kind):
             _kind = 'T' + kind
         return _kind
 
@@ -1732,6 +1733,8 @@ class calibration():
             _parent = self.dictPhototype['%s_%s' % (_line, side)]
         except KeyError:
             return 0
+        except:
+            return 0
         nodeOffsetX = _parent.find(xOffsetX)
         if _new is None:
             if nodeOffsetX is None: return 0
@@ -1753,7 +1756,7 @@ class calibration():
         try:
             _line = int(line) % 2 + 1
             _parent = self.dictPhototype['%s_%s' % (_line, side)]
-        except KeyError:
+        except:
             return 0
         nodeOffsetY = _parent.find(xOffsetY)
         if _new is None:
@@ -1776,7 +1779,7 @@ class calibration():
         try:
             _line = int(line) % 2 + 1
             _parent = self.dictPhototype['%s_%s' % (_line, side)]
-        except KeyError:
+        except:
             return 0
         nodeRail = _parent.find(xRail)
         if _new is None:
