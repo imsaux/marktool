@@ -696,6 +696,8 @@ class main():
                 for f in files:
                     if os.path.splitext(f)[1].upper() == '.JPG':
                         _name = str(f).split('_')
+                        if len(_name) != 5:
+                            continue
                         if _name[0].isalnum() and re.match(r"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", _name[1]) and \
                             _name[2].isdigit() and len(_name[2]) == 14 and (_name[3][0] in ('L', 'R', 'T') or _name[3][:2] in ('ZL', 'ZR')):
                             self.check_data_type(os.path.join(root, f))
