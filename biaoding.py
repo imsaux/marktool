@@ -229,7 +229,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r201800207.0936')
+        about_menu.add_command(label='开发标识：r201800207.1354')
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
 
         self.win.config(menu=self.rootMenu)
@@ -656,27 +656,42 @@ class main():
 
     def config(self, mode=None):
         if mode is None:
-            if os.path.exists('file.dat'):
-                with open('file.dat', 'rb') as ff:
-                    self._file = pickle.load(ff)
-                    self.calibrationFile = self._file
-                    self.calibrationHelper = calibration(self.calibrationFile)
-            else:
+            try:
+                if os.path.exists('file.dat'):
+                    with open('file.dat', 'rb') as ff:
+                        self._file = pickle.load(ff)
+                        self.calibrationFile = self._file
+                        self.calibrationHelper = calibration(self.calibrationFile)
+                else:
+                    self._file = None
+            except:
+                if ff is not None:
+                    ff.close()
                 self._file = None
 
-            if os.path.exists('dir.dat'):
-                with open('dir.dat', 'rb') as df:
-                    self._dir = pickle.load(df)
-                    self._load_pics(self._dir)
-            else:
+            try:
+                if os.path.exists('dir.dat'):
+                    with open('dir.dat', 'rb') as df:
+                        self._dir = pickle.load(df)
+                        self._load_pics(self._dir)
+                else:
+                    self._dir = None
+            except:
+                if df is not None:
+                    df.close()
                 self._dir = None
 
-            if os.path.exists('index.dat'):
-                with open('index.dat', 'rb') as idf:
-                    self._index = int(pickle.load(idf))
-                    if self._index >= 0:
-                        self.currentPicIndex = self._index
-            else:
+            try:
+                if os.path.exists('index.dat'):
+                    with open('index.dat', 'rb') as idf:
+                        self._index = int(pickle.load(idf))
+                        if self._index >= 0:
+                            self.currentPicIndex = self._index
+                else:
+                    self._index = 0
+            except:
+                if idf is not None:
+                    idf.close()
                 self._index = 0
 
             if self.calibrationHelper is not None:
