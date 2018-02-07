@@ -1,4 +1,13 @@
 # coding=utf-8
+
+# 自动标定流程
+# 1. 解析标定文件，按照车型在图片中的位置及高度占图片的比例进行分组 （analyzeCalibrationFile -> _frequency(_getKinds))
+# 2. 标定当前车型，保存 (save)
+# 3. 记录标定数据并计算各项偏移值
+# 4. 获取同组车型 (get_current_group)
+# 5. 遍历同组车型，同时更改标定文件中的数据 (calibration.carbody)
+
+
 import codecs
 import datetime
 from xml.etree import ElementTree as ET
@@ -220,7 +229,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r201800206.0926')
+        about_menu.add_command(label='开发标识：r201800207.0936')
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
 
         self.win.config(menu=self.rootMenu)
@@ -231,7 +240,7 @@ class main():
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+75, y=self.show_size[1]-55)
-        Label(self.win, text="版本：2.7.0.0").place(x=0, y=self.show_size[1]-50)
+        Label(self.win, text="版本：2.7.0.1").place(x=0, y=self.show_size[1]-50)
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
@@ -806,7 +815,6 @@ class main():
             return _file[len(_file) - 1].upper()
 
     def getPicInfo(self, pic):
-        # print(pic)
         try:
             _lst = os.path.basename(pic).split('_')
             _kind = _lst[0]
@@ -1478,9 +1486,7 @@ class main():
 
     def _frequency(self, dct_group):
         """
-        计算频率分布
-        :param lst_value: 
-        :return: 
+        计算分布
         """
         dict_frequency = dict()
         for _k in dct_group.keys():
@@ -1528,8 +1534,9 @@ class main():
             else:
                 _curkind = kind
             carbody = self.calibrationHelper.carbody(_curkind, _l, _s)
-            if carbody is None or carbody.count(-1) == 4 or 0 in [carbody[1], carbody[3]]: # 过滤异常数据
+            if carbody is None or carbody.count(-1) == 4 or 0 in [carbody[1], carbody[3]]: # 对异常数据、未标定车型进行处理
                 try:
+                    # 将该类车型归入特殊分组，该组不进行自动标定
                     vals[_curkind[0]].append((_curkind, None))
                 except KeyError:
                     vals[_curkind[0]] = [(_curkind, None),]
