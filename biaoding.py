@@ -1,46 +1,35 @@
 # coding=utf-8
 import codecs
-import datetime
-from xml.etree import ElementTree as ET
-import PIL.Image as pilImage
-# import PIL.ImageDraw as pilImgDraw
-import PIL.ImageTk as pilImgTk
-from tkinter.filedialog import *
-import tkinter.ttk as ttk
-import tkinter as tk
 import ctypes
-import configparser
-import logging
+import datetime
 import inspect
+import json
+import logging
+import os
+import sys
+import tkinter as tk
+import tkinter.ttk as ttk
+from tkinter.filedialog import FileDialog, askdirectory, askopenfilename
+from xml.etree import ElementTree as ET
+
+import PIL.Image as pilImage
+import PIL.ImageTk as pilImgTk
+
 
 class const:
-    NONE_CALIBRATION = 0
-    CAR_CALIBRATION = 1
-    AXEL_CALIBRATION = 2
-    RAIL_CALIBRATION = 3
-    WHEEL_CALIBRATION = 4
-    OUTLINE_CALIBRATION = 5
-    OUTLINE_CALIBRATION2 = 6
+    class Calibration:
+        NONE_CALIBRATION = 0
+        CAR_CALIBRATION = 1
+        AXEL_CALIBRATION = 2
+        RAIL_CALIBRATION = 3
+        WHEEL_CALIBRATION = 4
+        OUTLINE_CALIBRATION = 5
 
-    DATA_TYPE_Z = 31
-    DATA_TYPE_G = 32
-    DATA_TYPE_T = 33
 
     CALC_SAVE_CALIBRATION = 41
     CALC_READ_CALIBRATION = 42
+    CALC_SAVE_AUTO_CALIBRATION = 43
 
-    SHOW_MODE_ORIGIN = 51
-    SHOW_MODE_ZOOM = 52
-
-    DRAW_MODE_NONE = 61
-    DRAW_MODE_CALIBRATION = 62
-    DRAW_MODE_AXEL = 63
-    DRAW_MODE_WHEEL = 64
-    DRAW_MODE_RAIL = 65
-    DRAW_MODE_OUTLINE = 66
-
-    MARK_MODE_ALL = 71
-    MARK_MODE_AUTO = 72
 
     if os.name == 'posix':
         KEY_CTRL = 37
@@ -51,7 +40,7 @@ class const:
 
 class util:
     @staticmethod
-    def _gettime(_time=None, _type='socket'):
+    def get_time(_time=None, _type='socket'):
         """
         获取特定格式的日期时间字符串
         """
@@ -67,20 +56,26 @@ class util:
             return t.strftime("%Y-%m-%d %H:%M:%S")
         elif _type == 'file':
             return t.strftime("%Y%m%d")
+        elif _type == 1:
+            return str(t.year) + '年' + str(t.month) + '月' + str(t.day) + '日'
+        elif _type == 2:
+            return t.strftime('%Y%m%d%H%M%S')
+        elif _type == 3:
+            return t.strftime('%m/%d/%Y')
+        elif _type == 4:
+            return str(t.year) + '年' + str(t.month) + '月' + str(t.day) + '日 ' + str(t.hour).zfill(2) + ':' + str(t.minute).zfill(2) + ':' + str(t.second).zfill(2)
+
         else:
             return None
 
-
 class main():
     def __init__(self, _mainobj):
-        self.logger = self._getLogger()
-        self.logger.info('启动')
         self.win = _mainobj
         try:
             user32 = ctypes.windll.LoadLibrary('user32.dll')
             menu_height = user32.GetSystemMetrics(15)
             title_height = user32.GetSystemMetrics(4)
-        except Exception as e:
+        except:
             menu_height = 20
             title_height = 20
         self.win_size = (self.win.winfo_screenwidth(), self.win.winfo_screenheight()-menu_height-title_height-20)
@@ -109,7 +104,7 @@ class main():
         dirpath = os.path.abspath(os.path.dirname(this_file))
         if not os.path.exists(os.path.join(dirpath, 'log')):
             os.makedirs(os.path.join(dirpath, 'log'))
-        handler = logging.FileHandler(os.path.join(dirpath, 'log', self._datetime_format(mode=2) + ".log"))
+        handler = logging.FileHandler(os.path.join(dirpath, 'log', util.get_time(_type=2) + ".log"))
 
         formatter = logging.Formatter('%(asctime)s %(name)-12s [line:%(lineno)d] %(levelname)-8s %(message)s')
         handler.setFormatter(formatter)
@@ -143,7 +138,7 @@ class main():
         self.rail_y = 0
         self.outlines = [0, 0, 0]
         self.autoCalibrationParams = [0, 0, 1, 1]
-        self.oldCalibrationInfo = list()
+        self.oldCalibrationInfo = dict()
         self.groupByCalibration = dict()
         self.paint = {
             'CAR': [],
@@ -179,9 +174,6 @@ class main():
         self.CTRL = False
         self.isCalibrationFileReady = False
         self.FULL_SCREEN = False
-        self._file = sys.path[0]
-        self._dir = sys.path[0]
-        self._index = 0
         self.saved = list()
 
         if init:
@@ -210,24 +202,24 @@ class main():
         self.rootMenu.add_command(label='读取图片', command=self.openPictureFolder)
         self.rootMenu.add_command(label='上一张', command=self.showLastPic)
         self.rootMenu.add_command(label='下一张', command=self.showNextPic)
-        self.rootMenu.add_command(label='保存', command=self.save)
+        self.rootMenu.add_command(label='保存', command=self.save_data)
 
-        test_menu = tk.Menu(self.rootMenu, tearoff=0)
-        test_menu.add_command(label='鼠标滚轮-向下：缩小')
-        test_menu.add_command(label='鼠标滚轮-向上：放大')
-        test_menu.add_command(label='鼠标右键：选择标定类型',)
-        test_menu.add_command(label='鼠标左键：画点',)
-        test_menu.add_command(label='Ctrl + 鼠标左键：拖动',)
-        self.rootMenu.add_cascade(label='帮助', menu=test_menu)
+        save_menu = tk.Menu(self.rootMenu, tearoff=0)
+        save_menu.add_command(label='导出json', command=self.save2json)
+        save_menu.add_command(label='导出config', command=self.save2config)
+        self.rootMenu.add_cascade(label='导出', menu=save_menu)
+
+        help_menu = tk.Menu(self.rootMenu, tearoff=0)
+        help_menu.add_command(label='鼠标滚轮-向下：缩小')
+        help_menu.add_command(label='鼠标滚轮-向上：放大')
+        help_menu.add_command(label='鼠标右键：选择标定类型',)
+        help_menu.add_command(label='鼠标左键：画点',)
+        help_menu.add_command(label='Ctrl + 鼠标左键：拖动',)
+        self.rootMenu.add_cascade(label='帮助', menu=help_menu)
 
         self.win.config(menu=self.rootMenu)
 
         self.setEventBinding()
-
-    def create_group_menu(self):
-        dct = self.imgs_group[self.group_imgs[self.currentPic]][0]
-        carriage_menu = tk.Menu(self.rootMenu, tearoff=0)
-        self.rootMenu.add_cascade(label='智能分组', menu=carriage_menu)
 
 
     def _zoom_to_point(self, x, y):
@@ -281,11 +273,6 @@ class main():
         self.bbox_move(-_move[0], -_move[1])
         self.display_unsaved_rectangle()
 
-    # todo 分车型标定（使用该功能后，将每种车型仅显示一张）
-    # todo 定位至最近的新增车型
-
-
-
     def setEventBinding(self):
         self.canvas.bind('<Motion>', self.eCanvasMotion)
         self.canvas.bind('<Button-3>', self.eCanvasButton_3)
@@ -301,7 +288,6 @@ class main():
         self.canvas.bind('<B1-Motion>', self.drag)
 
     def eKeyChanged(self, event):
-        print(event.keycode)
         if event.keycode == const.KEY_CTRL and self.CTRL:
             self.CTRL = False
         elif event.keycode == const.KEY_CTRL and not self.CTRL:
@@ -346,159 +332,159 @@ class main():
                 self.full_last_x = event.x
                 self.full_last_y = event.y
 
-    def showInfo(self):
-        if self.calibrationHelper is None: return
-        def getLineName(name):
-            return '202.202.202.%s' % (str(int(name)+1),)
+    # def showInfo(self):
+    #     if self.calibrationHelper is None: return
+    #     def getLineName(name):
+    #         return '202.202.202.%s' % (str(int(name)+1),)
         
-        top = tk.Toplevel(self.win, width=420, height=500)
-        top.title('标定信息')
-        _side_frame = tk.Frame(top, width=420, height=30)
-        _info_frame = tk.Frame(top, width=420, height=570)
-        _side_frame.place(x=0, y=0)
-        _info_frame.place(x=0, y=31)
+    #     top = tk.Toplevel(self.win, width=420, height=500)
+    #     top.title('标定信息')
+    #     _side_frame = tk.Frame(top, width=420, height=30)
+    #     _info_frame = tk.Frame(top, width=420, height=570)
+    #     _side_frame.place(x=0, y=0)
+    #     _info_frame.place(x=0, y=31)
         
-        lb_side = tk.Label(_side_frame, text='站点：')
-        lb_side.place(x=10, y=0)
-        ery_side = tk.Entry(_side_frame, width=10)
-        ery_side.place(x=50, y=0)
-        lb_side_info = Label(_side_frame)
-        lb_side_info.place(x=100, y=0)
-        infos = self.calibrationHelper.sideinfo()
-        ery_side.insert(0, infos[2])
-        lb_side_info.config(text='  创建日期：%s  最近修改日期：%s' % (infos[0], infos[1]))
+    #     lb_side = tk.Label(_side_frame, text='站点：')
+    #     lb_side.place(x=10, y=0)
+    #     ery_side = tk.Entry(_side_frame, width=10)
+    #     ery_side.place(x=50, y=0)
+    #     lb_side_info = tk.Label(_side_frame)
+    #     lb_side_info.place(x=100, y=0)
+    #     infos = self.calibrationHelper.sideinfo()
+    #     ery_side.insert(0, infos[2])
+    #     lb_side_info.config(text='  创建日期：%s  最近修改日期：%s' % (infos[0], infos[1]))
         
-        stats = self.stats(mode='info')
-        tree = ttk.Treeview(_info_frame, height=20)
-        tree["columns"]=("left","right")
-        tree.column("left", width=100 )
-        tree.column("right", width=100)
-        tree.heading("left", text="左侧")
-        tree.heading("right", text="右侧")
-        for _keys in stats.keys():
-            root = tree.insert('', 0, text=getLineName(_keys))
-            for _kind in stats[_keys]:
-                if '×' == _kind[1] or '×' == _kind[2]:
-                    tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]), tags='warning')
-                else:
-                    tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]))
-            iKind = len(tree.get_children(item=root))
-            iLeft = [tree.item(x)['values'][0] for x in tree.get_children(item=root)].count('√')
-            iRight = [tree.item(x)['values'][1] for x in tree.get_children(item=root)].count('√')
-            tree.insert(root, 'end', text='总计： '+str(iKind), values=(str(iLeft),str(iRight)))
-        tree.tag_configure('warning', background='orange')
-        tree.pack(side=LEFT)
-        trinfo = Scrollbar(_info_frame, orient=VERTICAL, command=tree.yview)
-        tree.configure(yscrollcommand=trinfo.set)
-        trinfo.pack(side=RIGHT, fill=Y)
-        def _close():
-            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util._gettime(_type='file'))
-            top.destroy()
-        btnClose = Button(top, text='确定', command=_close, width=10)
-        btnClose.place(x=230, y=465)
+    #     stats = self.stats(mode='info')
+    #     tree = ttk.Treeview(_info_frame, height=20)
+    #     tree["columns"]=("left","right")
+    #     tree.column("left", width=100 )
+    #     tree.column("right", width=100)
+    #     tree.heading("left", text="左侧")
+    #     tree.heading("right", text="右侧")
+    #     for _keys in stats.keys():
+    #         root = tree.insert('', 0, text=getLineName(_keys))
+    #         for _kind in stats[_keys]:
+    #             if '×' == _kind[1] or '×' == _kind[2]:
+    #                 tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]), tags='warning')
+    #             else:
+    #                 tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]))
+    #         iKind = len(tree.get_children(item=root))
+    #         iLeft = [tree.item(x)['values'][0] for x in tree.get_children(item=root)].count('√')
+    #         iRight = [tree.item(x)['values'][1] for x in tree.get_children(item=root)].count('√')
+    #         tree.insert(root, 'end', text='总计： '+str(iKind), values=(str(iLeft),str(iRight)))
+    #     tree.tag_configure('warning', background='orange')
+    #     tree.pack(side=tk.LEFT)
+    #     trinfo = ttk.Scrollbar(_info_frame, orient=tk.VERTICAL, command=tree.yview)
+    #     tree.configure(yscrollcommand=trinfo.set)
+    #     trinfo.pack(side=tk.RIGHT, fill=tk.Y)
+    #     def _close():
+    #         self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util.get_time(_type='file'))
+    #         top.destroy()
+    #     btnClose = tk.Button(top, text='确定', command=_close, width=10)
+    #     btnClose.place(x=230, y=465)
 
-    def showStatus(self):
-        if self.calibrationHelper is None: return
-        def _getLineName(name):
-            return '202.202.202.%s' % (str(int(name)+1),)
+    # def showStatus(self):
+    #     if self.calibrationHelper is None: return
+    #     def _getLineName(name):
+    #         return '202.202.202.%s' % (str(int(name)+1),)
         
-        top = Toplevel(self.win, width=420, height=500)
-        top.title('车型状态')
-        _side_frame = Frame(top, width=420, height=30)
-        _info_frame = Frame(top, width=420, height=570)
-        _side_frame.place(x=0, y=0)
-        _info_frame.place(x=0, y=31)
+    #     top = tk.Toplevel(self.win, width=420, height=500)
+    #     top.title('车型状态')
+    #     _side_frame = tk.Frame(top, width=420, height=30)
+    #     _info_frame = tk.Frame(top, width=420, height=570)
+    #     _side_frame.place(x=0, y=0)
+    #     _info_frame.place(x=0, y=31)
         
-        lb_side = Label(_side_frame, text='站点：')
-        lb_side.place(x=10, y=0)
-        ery_side = Entry(_side_frame, width=10)
-        ery_side.place(x=50, y=0)
-        lb_side_info = Label(_side_frame)
-        lb_side_info.place(x=100, y=0)
-        infos = self.calibrationHelper.sideinfo()
-        ery_side.insert(0, infos[2])
-        lb_side_info.config(text='  创建日期：%s  最近修改日期：%s' % (infos[0], infos[1]))
+    #     lb_side = tk.Label(_side_frame, text='站点：')
+    #     lb_side.place(x=10, y=0)
+    #     ery_side = tk.Entry(_side_frame, width=10)
+    #     ery_side.place(x=50, y=0)
+    #     lb_side_info = tk.Label(_side_frame)
+    #     lb_side_info.place(x=100, y=0)
+    #     infos = self.calibrationHelper.sideinfo()
+    #     ery_side.insert(0, infos[2])
+    #     lb_side_info.config(text='  创建日期：%s  最近修改日期：%s' % (infos[0], infos[1]))
         
         
-        stats = self.stats(mode='status')
-        tree = ttk.Treeview(_info_frame, height=20)
-        tree["columns"]=("left","right")
-        tree.column("left", width=100 )
-        tree.column("right", width=100)
-        tree.heading("left", text="左侧")
-        tree.heading("right", text="右侧")
+    #     stats = self.stats(mode='status')
+    #     tree = ttk.Treeview(_info_frame, height=20)
+    #     tree["columns"]=("left","right")
+    #     tree.column("left", width=100 )
+    #     tree.column("right", width=100)
+    #     tree.heading("left", text="左侧")
+    #     tree.heading("right", text="右侧")
 
-        for _keys in stats.keys():
-            root = tree.insert('', 0, text=_getLineName(_keys))
-            for _kind in stats[_keys]:
-                if '缺' in _kind[1] or '缺' in _kind[2]:
-                    tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]), tags='warning')
-                else:
-                    tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]))
-            iKind = len(tree.get_children(item=root))
-            iLeft = [tree.item(x)['values'][0] for x in tree.get_children(item=root)].count('缺[缺]')
-            iRight = [tree.item(x)['values'][1] for x in tree.get_children(item=root)].count('缺[缺]')
-            tree.insert(root, 'end', text='总计： '+str(iKind), values=(str(iLeft),str(iRight)))
-        tree.tag_configure('warning', background='orange')
-        tree.pack(side=LEFT)
-        trinfo = Scrollbar(_info_frame, orient=VERTICAL, command=tree.yview)
-        tree.configure(yscrollcommand=trinfo.set)
-        trinfo.pack(side=RIGHT, fill=Y)
-        def _close():
-            self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util._gettime(_type='file'))
-            top.destroy()
-        btnClose = Button(top, text='确定', command=_close, width=10)
-        btnClose.place(x=230, y=465)
+    #     for _keys in stats.keys():
+    #         root = tree.insert('', 0, text=_getLineName(_keys))
+    #         for _kind in stats[_keys]:
+    #             if '缺' in _kind[1] or '缺' in _kind[2]:
+    #                 tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]), tags='warning')
+    #             else:
+    #                 tree.insert(root, 'end', text=_kind[0], values=(_kind[1],_kind[2]))
+    #         iKind = len(tree.get_children(item=root))
+    #         iLeft = [tree.item(x)['values'][0] for x in tree.get_children(item=root)].count('缺[缺]')
+    #         iRight = [tree.item(x)['values'][1] for x in tree.get_children(item=root)].count('缺[缺]')
+    #         tree.insert(root, 'end', text='总计： '+str(iKind), values=(str(iLeft),str(iRight)))
+    #     tree.tag_configure('warning', background='orange')
+    #     tree.pack(side=tk.LEFT)
+    #     trinfo = ttk.Scrollbar(_info_frame, orient=tk.VERTICAL, command=tree.yview)
+    #     tree.configure(yscrollcommand=trinfo.set)
+    #     trinfo.pack(side=tk.RIGHT, fill=tk.Y)
+    #     def _close():
+    #         self.calibrationHelper.sideinfo(sideName=ery_side.get(), modifyDate=util.get_time(_type='file'))
+    #         top.destroy()
+    #     btnClose = tk.Button(top, text='确定', command=_close, width=10)
+    #     btnClose.place(x=230, y=465)
 
-    def stats(self, mode='status'):
-        def _filter(x):
-            return x is not None
-        # _stats = dict()
-        # today_date = util._gettime(_type='file')
-        if self.calibrationHelper is None: return
-        _keys = set([x.split('_')[0] for x in self.calibrationHelper.dictPhototype.keys()])
-        kinds = dict()
-        for line in _keys:
-            _L = sorted(filter(_filter, [x.get('cztype') for x in self.calibrationHelper.dictPhototype[line + '_L']]) ,key=lambda s:s[0])
-            _R = sorted(filter(_filter, [x.get('cztype') for x in self.calibrationHelper.dictPhototype[line + '_R']]) ,key=lambda s:s[0])
-            kinds[line] = sorted(set(_L) | set(_R), key=lambda s:s[0])
-        if len(kinds) == 0: return ['空', '', '']
-        _return = dict()
-        if mode == 'info':
-            for line in kinds.keys():
-                _return[line] = list()
-                for kind in kinds[line]:
-                    _tmp = list()
-                    _tmp.append(kind)
-                    if self.calibrationHelper.carbody(kind, line, 'L').count(-1) != 4:
-                        _tmp.append('√')
-                    else:
-                        _tmp.append('×')
-                    if self.calibrationHelper.carbody(kind, line, 'R').count(-1) != 4:
-                        _tmp.append('√')
-                    else:
-                        _tmp.append('×')
-                    _return[line].append(_tmp)
-            # print(_return)
-        elif mode == 'status':
-            for line in kinds.keys():
-                _return[line] = list()
-                for kind in kinds[line]:
-                    _tmp = list()
-                    _tmp.append(kind)
-                    _l = self.calibrationHelper.carinfo(kind, line, 'L')
-                    if _l != [None, None, None]:
-                        _tmp.append('%s[%s]' % (
-                            '自动' if _l[2] == 'Auto' else ('缺' if _l[2] is None else '手动'),
-                             _l[1] if _l[1] is not None else '缺'))
-                    _r = self.calibrationHelper.carinfo(kind, line, 'R')
-                    if _r != [None, None, None]:
-                        _tmp.append('%s[%s]' % (
-                            '自动' if _r[2] == 'Auto' else ('缺' if _r[2] is None else '手动'),
-                             _r[1] if _r[1] is not None else '缺'))
-                    _return[line].append(_tmp)
-            # print(_return)
-        return _return
+    # def stats(self, mode='status'):
+    #     def _filter(x):
+    #         return x is not None
+    #     # _stats = dict()
+    #     # today_date = util._gettime(_type='file')
+    #     if self.calibrationHelper is None: return
+    #     _keys = set([x.split('_')[0] for x in self.calibrationHelper.dictPhototype.keys()])
+    #     kinds = dict()
+    #     for line in _keys:
+    #         _L = sorted(filter(_filter, [x.get('cztype') for x in self.calibrationHelper.dictPhototype[line + '_L']]) ,key=lambda s:s[0])
+    #         _R = sorted(filter(_filter, [x.get('cztype') for x in self.calibrationHelper.dictPhototype[line + '_R']]) ,key=lambda s:s[0])
+    #         kinds[line] = sorted(set(_L) | set(_R), key=lambda s:s[0])
+    #     if len(kinds) == 0: return ['空', '', '']
+    #     _return = dict()
+    #     if mode == 'info':
+    #         for line in kinds.keys():
+    #             _return[line] = list()
+    #             for kind in kinds[line]:
+    #                 _tmp = list()
+    #                 _tmp.append(kind)
+    #                 if self.calibrationHelper.carbody(kind, line, 'L').count(-1) != 4:
+    #                     _tmp.append('√')
+    #                 else:
+    #                     _tmp.append('×')
+    #                 if self.calibrationHelper.carbody(kind, line, 'R').count(-1) != 4:
+    #                     _tmp.append('√')
+    #                 else:
+    #                     _tmp.append('×')
+    #                 _return[line].append(_tmp)
+    #         # print(_return)
+    #     elif mode == 'status':
+    #         for line in kinds.keys():
+    #             _return[line] = list()
+    #             for kind in kinds[line]:
+    #                 _tmp = list()
+    #                 _tmp.append(kind)
+    #                 _l = self.calibrationHelper.carinfo(kind, line, 'L')
+    #                 if _l != [None, None, None]:
+    #                     _tmp.append('%s[%s]' % (
+    #                         '自动' if _l[2] == 'Auto' else ('缺' if _l[2] is None else '手动'),
+    #                          _l[1] if _l[1] is not None else '缺'))
+    #                 _r = self.calibrationHelper.carinfo(kind, line, 'R')
+    #                 if _r != [None, None, None]:
+    #                     _tmp.append('%s[%s]' % (
+    #                         '自动' if _r[2] == 'Auto' else ('缺' if _r[2] is None else '手动'),
+    #                          _r[1] if _r[1] is not None else '缺'))
+    #                 _return[line].append(_tmp)
+    #         # print(_return)
+    #     return _return
 
 
     def setCurrnetPic(self, filename):
@@ -507,38 +493,10 @@ class main():
             self.currentPicInfo = self.getPicInfo(filename)
             self.dirname = os.path.dirname(filename)
 
-    def calc(self, mode, x=0, y=0, w=0, h=0, algo=None):
+    def calc(self, mode, _bbox=None):
         if  mode == const.CALC_SAVE_CALIBRATION:
             _img = self.canvas.bbox(self.paint['IMG'][0])  # 图片位置
             bbox_car = self.canvas.bbox(self.paint['CAR'][0])
-            x = round((bbox_car[0] - _img[0]) / self.showZoomRatio)
-            y = round((bbox_car[1] - _img[1]) / self.showZoomRatio)
-            w = round((bbox_car[2] - _img[0]) / self.showZoomRatio - x)
-            h = round((bbox_car[3] - _img[1]) / self.showZoomRatio - y)
-            return x, y, w, h
-        elif mode == const.CALC_READ_CALIBRATION:
-            x1 = int(self.oldCalibrationInfo[0] * self.showZoomRatio) + x
-            y1 = int(self.oldCalibrationInfo[1] * self.showZoomRatio) + y
-            x2 = int((self.oldCalibrationInfo[2] + self.oldCalibrationInfo[0]) * self.showZoomRatio) + x
-            y2 = int((self.oldCalibrationInfo[3] + self.oldCalibrationInfo[1]) * self.showZoomRatio) + y
-            return x1, y1, x2, y2
-        else:
-            return x, y, w, h
-
-    def _get_group_kinds(self):
-        return list(self.imgs_group[self.group_imgs[self.currentPic]][0].keys())
-
-
-    def save(self):
-
-        # todo 自动标定如何过滤影响车型
-        _Z = True if self.currentPic in self.source['Z'] else False
-        if self.currentPic in self.source['G'] and len(self.paint['CAR']) > 0 and self.paint['CAR'][0] not in self.history['CAR']:
-            # x, y, w, h = self.calc(const.CALC_SAVE_CALIBRATION)
-            bbox_car = self.canvas.bbox(self.paint['CAR'][0])
-            _img = self.canvas.bbox(self.paint['IMG'][0])
-            _group_kinds = self.get_current_group()
-
             if not self.FULL_SCREEN:
                 x = round((bbox_car[0] - _img[0])/self.showZoomRatio)
                 y = round((bbox_car[1] - _img[1])/self.showZoomRatio)
@@ -549,69 +507,122 @@ class main():
                 y = bbox_car[1] - _img[1]
                 w = bbox_car[2] - _img[0] - x
                 h = bbox_car[3] - _img[1] - y
+            ret = dict()
+            ret['X_carbody'] = x
+            ret['Y_carbody'] = y
+            ret['width_carbody'] = w
+            ret['height_carbody'] = h
+            
+            return ret
+        elif mode == const.CALC_READ_CALIBRATION:
+            _img = self.canvas.bbox(self.paint['IMG'][0])  # 图片位置
+
+            x1 = int(self.oldCalibrationInfo['X_carbody'] * self.showZoomRatio) + _img[0]
+            y1 = int(self.oldCalibrationInfo['Y_carbody'] * self.showZoomRatio) + _img[1]
+            x2 = int((self.oldCalibrationInfo['width_carbody'] + self.oldCalibrationInfo['X_carbody']) * self.showZoomRatio) + _img[0]
+            y2 = int((self.oldCalibrationInfo['height_carbody'] + self.oldCalibrationInfo['Y_carbody']) * self.showZoomRatio) + _img[1]
+            return x1, y1, x2, y2
+        elif mode == const.CALC_SAVE_AUTO_CALIBRATION:
+            if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0)!=4:
+                self.autoCalibrationParams[0] = _bbox['X_carbody'] - self.oldCalibrationInfo['X_carbody']
+                self.autoCalibrationParams[1] = _bbox['Y_carbody'] - self.oldCalibrationInfo['Y_carbody']
+                self.autoCalibrationParams[2] = _bbox['width_carbody'] / self.oldCalibrationInfo['width_carbody']
+                self.autoCalibrationParams[3] = _bbox['height_carbody'] / self.oldCalibrationInfo['height_carbody']
+            else:
+                self.autoCalibrationParams[3] = [0, 0, 1, 1]
+  
+
+    def save2json(self):
+        self.save_data()
+        self.calibrationHelper.export2JSON()
+
+
+    def is_unsave(self, item):
+        if item==const.Calibration.CAR_CALIBRATION:
+            return self.currentPic in self.source['G'] and len(self.paint['CAR']) > 0 and self.paint['CAR'][0] not in self.history['CAR']
+        else:
+            _Z = True if self.currentPic in self.source['Z'] else False
+            if item == const.Calibration.RAIL_CALIBRATION:
+                return self.currentPic not in self.source['T'] and len(self.paint['RAIL']) > 0 and self.paint['RAIL'][0] not in self.history['RAIL']
+            elif item == const.Calibration.AXEL_CALIBRATION:
+                return self.currentPic not in self.source['T'] and len(self.paint['AXEL']) > 0 and self.paint['AXEL'][0] not in self.history['AXEL']
+            elif item == const.Calibration.WHEEL_CALIBRATION:
+                return self.currentPic not in self.source['T'] and len(self.paint['WHEEL']) > 0 and self.paint['WHEEL'][0] not in self.history['WHEEL']
+            elif item == const.Calibration.OUTLINE_CALIBRATION:
+                return self.drawMode == const.Calibration.OUTLINE_CALIBRATION and len(self.paint['OUTLINE']) > 0 and self.paint['OUTLINE'][0] not in self.history['OUTLINE']
+
+
+    def save_data(self):
+        if self.is_unsave(const.Calibration.CAR_CALIBRATION):
+            _group_kinds = self.get_current_group()
+            _new_bbox = self.calc(mode=const.CALC_SAVE_CALIBRATION)
             self.calibrationHelper.carbody(
                 self.currentPicInfo[0],
                 self.currentPicInfo[1],
                 self.currentPicInfo[2],
-                _new=(x, y, w, h))
-
+                _new=_new_bbox)
             self.saved.append('%s_%s_%s' % (self.currentPicInfo[1], self.currentPicInfo[2], self.currentPicInfo[0]))
-            if self.oldCalibrationInfo.count(-1) != 4 and self.auto_calibration_enable:
-                self.autoCalibrationParams[0] = x - self.oldCalibrationInfo[0]
-                self.autoCalibrationParams[1] = y - self.oldCalibrationInfo[1]
-                self.autoCalibrationParams[2] = w / self.oldCalibrationInfo[2]
-                self.autoCalibrationParams[3] = h / self.oldCalibrationInfo[3]
+            if list(self.oldCalibrationInfo.values()).count(-1) != 4 and self.auto_calibration_enable:
+                self.calc(mode=const.CALC_SAVE_AUTO_CALIBRATION, _bbox=_new_bbox)
                 _lst = [k.split('_')[2] for k in list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))]
                 if len(_lst) > 0:
                     self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
                 self.autoCalibrationParams = [0, 0, 1, 1]
                 self.analyzeCalibrationFile()
-        if self.currentPic not in self.source['T'] and len(self.paint['AXEL']) > 0 and self.paint['AXEL'][0] not in self.history['AXEL']:
+        _Z = True if self.currentPic in self.source['Z'] else False
+        if self.is_unsave(const.Calibration.AXEL_CALIBRATION):
             self.calibrationHelper.axel(
                 self.currentPicInfo[1], 
                 self.currentPicInfo[2], 
                 _new=self.axel_x_offset,
                 Z=_Z)
-        if self.currentPic not in self.source['T'] and len(self.paint['WHEEL']) > 0 and self.paint['WHEEL'][0] not in self.history['WHEEL']:
+        if self.is_unsave(const.Calibration.WHEEL_CALIBRATION):
             self.calibrationHelper.wheel(
                 self.currentPicInfo[1], 
                 self.currentPicInfo[2], 
                 _new=self.axel_y,
                 Z=_Z)
-        if self.currentPic not in self.source['T'] and len(self.paint['RAIL']) > 0 and self.paint['RAIL'][0] not in self.history['RAIL']:
+        if self.is_unsave(const.Calibration.RAIL_CALIBRATION):
             self.calibrationHelper.rail(
                 self.currentPicInfo[1], 
                 self.currentPicInfo[2], 
                 _new=self.rail_y,
                 Z=_Z)
-        if self.drawMode == const.OUTLINE_CALIBRATION and len(self.paint['OUTLINE']) > 0 and self.paint['OUTLINE'][0] not in self.history['OUTLINE']:
+        if self.is_unsave(const.Calibration.OUTLINE_CALIBRATION):
             self.calibrationHelper.outline(
                 self.currentPicInfo[1],
                 self.currentPicInfo[0],
                 _new=self.outlines)
         self.display(pic=self.currentPic)
+        self.calibrationHelper.export()
 
-    def config(self, new=None):
-        c = configparser.ConfigParser()
-        try:
-            c.read('biaoding.ini')
-            if new is not None:
-                c.set(new[0], new[1], new[2].encode().decode())
-                c.write(open("biaoding.ini", "w"))
 
-            if os.path.exists(c.get('source', 'calibration_file')):
-                self._file = c.get('source', 'calibration_file')
-                self.calibrationHelper = calibration(self._file)
-            if os.path.exists(c.get('source', 'pic_dir')):
-                self._dir = c.get('source', 'pic_dir')
-                self._load_pics(self._dir)
-            if c.get('temp', 'index') != '':
-                self._index = int(c.get('temp', 'index'))
-            if new is None and self.calibrationHelper is not None:
-                self.analyzeCalibrationFile()
-                self.display()
-        except Exception as e:
-            pass
+    def save2config(self):
+        self.save_data()
+        self.calibrationHelper.export2XML()
+
+    def config(self, _new_file=None, _new_path=None, _new_index=None):
+        if os.path.exists('biaoding.json'):
+            if [_new_file, _new_path, _new_index].count(None) == 3:
+                with open('biaoding.json', 'r') as _json:
+                    v = json.load(_json)
+                    self._file = v['file']
+                    self._dir = v['path']
+                    self._index = v['index']
+            else:
+                with open('biaoding.json', 'w') as _json:
+                    v = dict()
+                    v['file'] = _new_file if _new_file is not None else self._file                    
+                    v['path'] = _new_path if _new_path is not None else self._dir                    
+                    v['index'] = _new_index if _new_index is not None else self._index
+                    json.dump(v, _json)
+        else:
+            v = {'file':'', 'path':'', 'index':0}
+            with open('biaoding.json', 'w') as _json:
+                json.dump(v, _json)
+            self._file = v['file']
+            self._dir = v['path']
+            self._index = v['index']
 
     def _load_pics(self, dir):
         self.source['G'] = []
@@ -626,10 +637,11 @@ class main():
                         self.check_data_type(os.path.join(root, f))
 
     def openPictureFolder(self):
-        self.drawMode = const.NONE_CALIBRATION
+        self.drawMode = const.Calibration.NONE_CALIBRATION
+        self.config()
         dirpath = askdirectory(initialdir=self._dir, title='请选择图片文件夹')
         if dirpath != '' and os.path.exists(dirpath):
-            self.config(new=('source', 'pic_dir', dirpath))
+            self.config(_new_path=dirpath)
             self._load_pics(dirpath)
             if self.calibrationHelper is not None:
                 self.display()
@@ -651,24 +663,31 @@ class main():
                 self.setCurrnetPic(pic)
             self.show()
 
+
+
     def openCalibrationFile(self):
         self.isCalibrationFileReady = False
-        self.data_init(init=False)
-        _file_path = os.path.normpath(askopenfilename(initialdir=self._file, title='请选择标定文件'))
+        self.config()
+        _file_path = os.path.normpath(askopenfilename(initialdir=os.path.dirname(self._file), title='请选择标定文件'))
+        # self.data_init(init=False)
         if len(_file_path) > 0 and os.path.exists(_file_path):
-            self.config(new=('source', 'calibration_file', _file_path))
-            self.calibrationHelper = calibration(_file_path)
-            self.handleCarPositionfile()
+            self.config(_new_file=_file_path)
+            if os.path.splitext(_file_path)[1] == '.config':
+                self.calibrationHelper = json_handle()
+                self.calibrationHelper.fromXML(_file_path)
+            if os.path.splitext(_file_path)[1] == '.json':
+                self.calibrationHelper = json_handle(_file_path)
+            self.analyzeCalibrationFile()
             if self.calibrationHelper is not None:
                 self.display()
-
-    def handleCarPositionfile(self):
-        self.analyzeCalibrationFile()
+        else:
+            if self.calibrationHelper is not None:
+                self.isCalibrationFileReady = True
 
     def get_current_group(self):
         _picInfo = self.getPicInfo(self.currentPic)
         _group_key = '%s_%s' % (str(_picInfo[1]), _picInfo[2])
-        _algorGroup = self.algor_y_h(_group_key, [_picInfo[0]])
+        _algorGroup = self.algor_y_h(str(_picInfo[1]), str(_picInfo[2]), [_picInfo[0]])
         if _algorGroup[list(_algorGroup.keys())[0]][0][1] is not None:
             _key = self._getDictKey(
                 list(_algorGroup.keys())[0],
@@ -827,7 +846,7 @@ class main():
             str(self.currentPicIndex + 1),
             len(self.show_pics),
             self.currentPic,
-            '【新增】' if self.oldCalibrationInfo.count(-1) == 4 else ''
+            '【新增】' if list(self.oldCalibrationInfo.values()).count(-1) == 4 or list(self.oldCalibrationInfo.values()).count(0) == 4 else ''
         )
         self.win.title(_info)
 
@@ -836,24 +855,20 @@ class main():
         self.update_title()
         #print('exists carbody >>> ',self.oldCalibrationInfo)
         if not self.FULL_SCREEN:
-            _car = self.calc(
-                const.CALC_READ_CALIBRATION,
-                x=self.canvas.bbox(self.paint['IMG'][0])[0],
-                y=self.canvas.bbox(self.paint['IMG'][0])[1],
-            )
+            _car = self.calc(mode=const.CALC_READ_CALIBRATION)
             # _car = self.handleCoords(const.CAR_CALIBRATION_READ, self.canvas.bbox(self.paint['IMG'][0]))
             if _car.count(-1) != 4:  # 不为初始值
                 x1, y1, x2, y2 = _car
-                _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo[2] * self.showZoomRatio /2)
+                _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo['width_carbody'] * self.showZoomRatio /2)
                 _x2 = x2 - x1
                 car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
                 self.paint['CAR'].append(car_id)
                 self.history['CAR'].append(car_id)
         else:
-            x1 = self.oldCalibrationInfo[0]
-            y1 = self.oldCalibrationInfo[1]
-            x2 = self.oldCalibrationInfo[2] + x1
-            y2 = self.oldCalibrationInfo[3] + y1
+            x1 = self.oldCalibrationInfo['X_carbody']
+            y1 = self.oldCalibrationInfo['Y_carbody']
+            x2 = self.oldCalibrationInfo['width_carbody'] + x1
+            y2 = self.oldCalibrationInfo['height_carbody'] + y1
             car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
             self.paint['CAR'].append(car_id)
 
@@ -919,27 +934,28 @@ class main():
         _line = str(self.currentPicInfo[1])
         _kind = str(self.currentPicInfo[0])
         _outlines = self.calibrationHelper.outline(_line, _kind)
-        for _outline in _outlines:
-            if not self.FULL_SCREEN:
-                outline_id = self.canvas.create_line(
-                    0,
-                    _outline *self.showZoomRatio + self.imgPosition[1],
-                    self.imgPosition[2],
-                    _outline *self.showZoomRatio + self.imgPosition[1],
-                    width=2,
-                    fill='yellow')
-                self.paint['OUTLINE'].append(outline_id)
-                self.history['OUTLINE'].append(outline_id)
-            else:
-                outline_id = self.canvas.create_line(
-                    0,
-                    _outline *self.showZoomRatio + self.imgPosition[1],
-                    self.imgPosition[2],
-                    _outline *self.showZoomRatio + self.imgPosition[1],
-                    width=2,
-                    fill='yellow')
-                self.paint['OUTLINE'].append(outline_id)
-                self.history['OUTLINE'].append(outline_id)
+        if _outlines.count(0)!=2:
+            for _outline in _outlines:
+                if not self.FULL_SCREEN:
+                    outline_id = self.canvas.create_line(
+                        0,
+                        _outline *self.showZoomRatio + self.imgPosition[1],
+                        self.imgPosition[2],
+                        _outline *self.showZoomRatio + self.imgPosition[1],
+                        width=2,
+                        fill='yellow')
+                    self.paint['OUTLINE'].append(outline_id)
+                    self.history['OUTLINE'].append(outline_id)
+                else:
+                    outline_id = self.canvas.create_line(
+                        0,
+                        _outline *self.showZoomRatio + self.imgPosition[1],
+                        self.imgPosition[2],
+                        _outline *self.showZoomRatio + self.imgPosition[1],
+                        width=2,
+                        fill='yellow')
+                    self.paint['OUTLINE'].append(outline_id)
+                    self.history['OUTLINE'].append(outline_id)
 
     def displayRailCalibration(self):
         _side = self.currentPicInfo[2]
@@ -1000,22 +1016,22 @@ class main():
             self.update_title()
             
     def setCarCalibration(self):
-        self.drawMode = const.CAR_CALIBRATION
+        self.drawMode = const.Calibration.CAR_CALIBRATION
 
     def setOutlineCalibration(self):
-        self.drawMode = const.OUTLINE_CALIBRATION
+        self.drawMode = const.Calibration.OUTLINE_CALIBRATION
 
-    def setOutlineCalibration2(self):
-        self.drawMode = const.OUTLINE_CALIBRATION2
+    # def setOutlineCalibration2(self):
+    #     self.drawMode = const.Calibration.OUTLINE_CALIBRATION2
 
     def setAxelCalibration(self):
-        self.drawMode = const.AXEL_CALIBRATION
+        self.drawMode = const.Calibration.AXEL_CALIBRATION
 
     def setRailCalibration(self):
-        self.drawMode = const.RAIL_CALIBRATION
+        self.drawMode = const.Calibration.RAIL_CALIBRATION
 
     def setWheelCalibration(self):
-        self.drawMode = const.WHEEL_CALIBRATION
+        self.drawMode = const.Calibration.WHEEL_CALIBRATION
 
     def eCanvasMotion(self, event):
         if len(self.paint['IMG']) == 0: return
@@ -1047,7 +1063,7 @@ class main():
 
     def eCanvasButton_3(self, event):
         self._clear_menu()
-        popmenu = Menu(self.canvas, tearoff=0)
+        popmenu = tk.Menu(self.canvas, tearoff=0)
         self.current_actived_menu = popmenu
         
         if self.currentPic in self.source['G']:
@@ -1059,7 +1075,7 @@ class main():
             popmenu.add_command(label='铁轨标定', command=self.setRailCalibration)
         if self.currentPic in self.source['T']:
             popmenu.add_command(label='轮廓标定', command=self.setOutlineCalibration)
-            popmenu.add_command(label='中线标定', command=self.setOutlineCalibration2)
+            # popmenu.add_command(label='中线标定', command=self.setOutlineCalibration2)
         popmenu.post(event.x_root, event.y_root)
 
     def eCanvasButton_1(self, event):
@@ -1067,7 +1083,7 @@ class main():
         if self.CTRL: return
         _bbox = self.canvas.bbox(self.paint['IMG'][0])
 
-        if self.drawMode == const.CAR_CALIBRATION:
+        if self.drawMode == const.Calibration.CAR_CALIBRATION:
             if len(self.coords_zoom) > 1:
                 self.coords_zoom.clear()
             if len(self.coords_full) > 1:
@@ -1122,7 +1138,7 @@ class main():
                     outline='red'
                 )
                 self.paint['CAR'].append(_new)
-        elif self.drawMode == const.AXEL_CALIBRATION:
+        elif self.drawMode == const.Calibration.AXEL_CALIBRATION:
             self.cleanCanvasByType(self.paint['AXEL'], self.canvas)
             self.cleanCanvasByType(self.paint['WHEEL'], self.canvas)
             _side = self.currentPicInfo[2]
@@ -1168,7 +1184,7 @@ class main():
                             self.show_img.size[1] + _bbox[1]),
                             (_axel - _x_offset,
                              _bbox[1]), width=2, fill='yellow'))
-        elif self.drawMode == const.RAIL_CALIBRATION:
+        elif self.drawMode == const.Calibration.RAIL_CALIBRATION:
             self.cleanCanvasByType(self.paint['RAIL'], self.canvas)
             if not self.FULL_SCREEN:
                 self.rail_y = round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) / self.showZoomRatio)
@@ -1177,7 +1193,7 @@ class main():
             self.paint['RAIL'].append(
                 self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
             )
-        elif self.drawMode == const.OUTLINE_CALIBRATION:
+        elif self.drawMode == const.Calibration.OUTLINE_CALIBRATION:
             if self.outlines[0] != 0 and self.outlines[1] != 0 or len(self.paint['OUTLINE']) > 1:
                 self.outlines[0] = 0
                 self.outlines[1] = 0
@@ -1196,90 +1212,6 @@ class main():
             self.paint['OUTLINE'].append(
                 self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
             )
-
-
-  
-        # if self.display_mode == DISPLAY_MODE_ZOOM:
-        #     if self.drawMode == CAR_CALIBRATION:
-        #         if len(self.coords) == 0:
-        #             self.coords.append((event.x, event.y))
-        #         else:
-        #             self.coords.clear()
-        #             self.coords.append((event.x, event.y))
-        #     elif self.drawMode == AXEL_CALIBRATION:
-        #         self.cleanCanvasByType(self.paint['AXEL'], self.canvas)
-        #         self.cleanCanvasByType(self.paint['WHEEL'], self.canvas)
-        #         _side = self.currentPicInfo[2]
-        #         _line = str(self.currentPicInfo[1])
-        #         _kind = self.currentPicInfo[0]
-        #         _w = self.origin_img.size[0]
-        #         self.paint['WHEEL'].append(
-        #             self.canvas.create_line(0, event.y, self.imgPosition[2], event.y, width=2, fill='yellow')
-        #         )
-        #         self.axel_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-                
-        #         _wheel = self._getpicwheelinfo()
-        #         _lst_axel = _wheel[:len(_wheel)-_wheel.count(-1)]
-        #         if _side == 'R':
-        #             _lst_axel.reverse()
-        #             _lst_axel = [_w - x for x in _lst_axel]
-        #             _x_offset = round(_lst_axel[0]*self.showZoomRatio) - event.x
-        #         if _side == 'L':
-        #             _x_offset = round(_lst_axel[2]*self.showZoomRatio) - event.x
-        #         self.axel_x_offset = round(_x_offset/self.showZoomRatio)
-        #         for _axel in _lst_axel:
-        #             self.paint['AXEL'].append(self.canvas.create_line(
-        #                 (round(_axel*self.showZoomRatio) - _x_offset,
-        #                 self.show_img.size[1] + self.imgPosition[1]),
-        #                 (round(_axel*self.showZoomRatio) - _x_offset,
-        #                 self.imgPosition[1]), width=2, fill='yellow'))
-        #     elif self.drawMode == RAIL_CALIBRATION:
-        #         self.cleanCanvasByType(self.paint['RAIL'], self.canvas)
-        #         self.rail_y = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-        #         self.paint['RAIL'].append(
-        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-        #         )
-        #     elif self.drawMode == OUTLINE_CALIBRATION:
-        #         if self.outlines[0] != 0 and self.outlines[1] != 0 or len(self.paint['OUTLINE']) > 1:
-        #             self.outlines[0] = 0
-        #             self.outlines[1] = 0
-        #             self.cleanCanvasByType(self.paint['OUTLINE'], self.canvas)
-        #         if self.outlines[0] == 0:
-        #             self.outlines[0] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-        #         elif self.outlines[1] == 0:
-        #             self.outlines[1] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-        #         # print(self.outlines)
-        #         self.paint['OUTLINE'].append(
-        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-        #         )
-        #     elif self.drawMode == OUTLINE_CALIBRATION2:
-        #         if self.outlines[2] != 0 or len(self.OUTLINE_MIDDLE_ID) > 0:
-        #             self.outlines[2] = 0
-        #             self.cleanCanvasByType(self.OUTLINE_MIDDLE_ID, self.canvas)
-        #         if self.outlines[2] == 0:
-        #             self.outlines[2] = round((event.y - self.imgPosition[1]) / self.showZoomRatio)
-        #         # print(self.outlines)
-        #         self.OUTLINE_MIDDLE_ID.append(
-        #             self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
-        #         )
-
-        # elif self.display_mode == DISPLAY_MODE_ORIGIN:
-        #     if self.drawMode == 1:
-        #         if self.CTRL_ENABLE: return
-        #         self.coords.append((event.x, event.y))
-        #         if len(self.coords) >= 2:
-        #             self.cleanCanvasByType(self.paint['CAR'], self.canvas)
-        #             _new = self.canvas.create_rectangle(
-        #                 # self.coords[0][0] + bbox[0], self.coords[0][1] + bbox[1],
-        #                 self.coords[0][0], self.coords[0][1],
-        #                 event.x, event.y,
-        #                 width=2,
-        #                 outline='red'
-        #             )
-        #             self.paint['CAR'].append(_new)
-        #             # print('img > ', self.canvas.bbox(self.paint['IMG'][0]))
-        #             # print('add > ', self.canvas.bbox(_new))
-        #             self.coords.clear()
 
     def eCanvasButton_1_release(self, event):
 
@@ -1330,39 +1262,27 @@ class main():
         self.paint['POINT'].append(self.canvas.create_oval(x - r, y - r, x + r, y + r, **kwargs))
 
 
-    def _fetch_obj(self, event):
-        c = event.widget
-        x = c.canvasx(event.x)
-        y = c.canvasy(event.y)
-        self.fetchobjs = None
-        objs = []
-        xyxy = None
-        item = c.find_withtag('current')
-        # print('_ self.showoffset >>> (%d,%d)' % (self.showoffset))
-        # if c.type(item) == 'image':
-        for i in c.find_all():
-            xyxy = c.bbox(i)
-            if x >= xyxy[0] and x <= xyxy[2] and y >= xyxy[1] and y <= xyxy[3]:
-                objs.append(i)
-            # print('all >>>(%d), fetch >>>(%d)' % (len(c.find_all()), len(objs)))
-        self.fetchobjs = objs
+    # def _fetch_obj(self, event):
+    #     c = event.widget
+    #     x = c.canvasx(event.x)
+    #     y = c.canvasy(event.y)
+    #     self.fetchobjs = None
+    #     objs = []
+    #     xyxy = None
+    #     item = c.find_withtag('current')
+    #     # print('_ self.showoffset >>> (%d,%d)' % (self.showoffset))
+    #     # if c.type(item) == 'image':
+    #     for i in c.find_all():
+    #         xyxy = c.bbox(i)
+    #         if x >= xyxy[0] and x <= xyxy[2] and y >= xyxy[1] and y <= xyxy[3]:
+    #             objs.append(i)
+    #         # print('all >>>(%d), fetch >>>(%d)' % (len(c.find_all()), len(objs)))
+    #     self.fetchobjs = objs
 
     def _clear_menu(self):
         # 清空menu
         if self.currentMenu is not None:
             self.currentMenu.unpost()
-
-    def _find_new_car(self):
-        _dt = dict()
-        for _key in self.showPics.keys():
-            _info = self.getPicInfo(_key)
-            r = self.calibrationHelper.carbody(_info[0], _info[1], _info[2])
-            if r.count(-1) == 4:
-                _dt[_key] = dict()
-                _sym = '%s_%s' % (str(_info[1]), _info[2])
-                _dt[_key][_sym] = list()
-        # print(_dt)
-        return _dt
 
     def _frequency(self, dct_group):
         """
@@ -1389,37 +1309,36 @@ class main():
         return _id
 
     def analyzeCalibrationFile(self):
-        for _line in self.calibrationHelper.dictPhototype.keys():
-            if '_' not in _line:
-                continue
-            _group = self._getKinds(_line, self.algor_y_h)
-            self.groupByCalibration[_line] = self._frequency(_group)
+        for line in self.calibrationHelper.Data:
+            for side in self.calibrationHelper.Data[line]:
+                _group = self._getKinds(line, side, self.algor_y_h)
+                self.groupByCalibration[line+'_'+side] = self._frequency(_group)
 
-    def _getKinds(self, _line, func):
-        _kinds = list()
-        for kind in self.calibrationHelper.dictPhototype[_line]:
-            if kind.tag != 'carcz' or kind.get('cztype') == '': continue
-            _kinds.append(str(kind.get('cztype')))
-        return func(_line, _kinds)
+    def _getKinds(self, line, side, func):
+        kinds = []
+        for items in self.calibrationHelper.Data[line][side]:
+            if isinstance(self.calibrationHelper.Data[line][side][items], int):
+                continue
+            elif isinstance(self.calibrationHelper.Data[line][side][items], dict):
+                kinds.append(items)
+        return func(line, side, kinds)
     
-    def algor_y_h(self, _line, kinds):
+    def algor_y_h(self, line, side, kinds):
         vals = dict()
-        _l = _line.split('_')[0]
-        _s = _line.split('_')[1]
         for kind in kinds:
             if '#' in kind:
                 _curkind = kind.replace('#', '*')
             else:
                 _curkind = kind
-            carbody = self.calibrationHelper.carbody(_curkind, _l, _s)
-            if carbody is None or carbody.count(-1) == 4: 
+            carbody = self.calibrationHelper.carbody(_curkind, line, side)
+            if carbody is None or list(carbody.values()).count(-1) == 4: 
                 try:
                     vals[_curkind[0]].append((_curkind, None))
                 except KeyError:
                     vals[_curkind[0]] = [(_curkind, None),]
             else:
-                y = int(carbody[1]) / 2048
-                h = int(carbody[3]) / 2048
+                y = int(carbody['Y_carbody']) / 2048
+                h = int(carbody['height_carbody']) / 2048
                 v1 = str(round(y / self.step_value))
                 v2 = str(round(h / self.step_value))
                 try:
@@ -1453,375 +1372,210 @@ class main():
                 vals[_curkind[0]] = [(_curkind, [v]),]
         return vals
 
+class json_handle():
+    def __init__(self, calibrationFile=None):
+        self.data = None
+        self.data_source_is_json = False
+        self.readJSON(calibrationFile)
+    
+    def export(self):
+        if self.data_source_is_json:
+            self.export2JSON()
+        else:
+            self.export2XML()
 
-class calibration():
-    def __init__(self, calibrationFile):
-        self.calibrationFile = calibrationFile
-        self.tree = None
-        self.dictPhototype = dict()
-        self.init()
-        
-    def init(self):
+    def readJSON(self, calibrationFile):
+        if calibrationFile is not None and os.path.exists(calibrationFile):
+            with open(calibrationFile, 'r') as fpRead:
+                self.data = json.load(fpRead)
+                self.data_source_is_json = True
+                self._baseName = os.path.splitext(calibrationFile)[0]
+
+    def export2JSON(self):
+        with open(self._baseName + '.json', 'w') as fpWrite:
+            json.dump(self.data, fpWrite)
+
+    @property
+    def Data(self):
+        return self.data
+
+    def export2XML(self, xmlFile=None):
+        _ImagingProperties = ET.Element('ImagingProperties')
+        for line in self.data.keys():
+            _CameraPosition = ET.SubElement(_ImagingProperties, 'CameraPosition')
+            _CameraPosition.set('line', line)
+            for side in self.data[line]:
+                _lphototype = ET.SubElement(_CameraPosition, 'phototype')
+                _lphototype.set('imgtype', side)
+                for items in self.data[line][side]:
+                    if isinstance(self.data[line][side][items], dict):
+                        kind = ET.SubElement(_lphototype, 'carcz')
+                        kind.set('cztype', items)
+                        _x = ET.SubElement(kind, 'X_carbody')
+                        _x.text = str(self.data[line][side][items]['X_carbody'])
+                        _y = ET.SubElement(kind, 'Y_carbody')
+                        _y.text = str(self.data[line][side][items]['Y_carbody'])
+                        _w = ET.SubElement(kind, 'width_carbody')
+                        _w.text = str(self.data[line][side][items]['width_carbody'])
+                        _h = ET.SubElement(kind, 'height_carbody')
+                        _h.text = str(self.data[line][side][items]['height_carbody'])
+                    elif isinstance(self.data[line][side][items], int):
+                        _newOffsetX = ET.Element(items)
+                        _newOffsetX.text = str(self.data[line][side][items])
+                        _lphototype.insert(0, _newOffsetX)
+        tree = ET.ElementTree(element=_ImagingProperties)
+        if xmlFile is not None:
+            tree.write(xmlFile)
+        else:
+            tree.write(self._baseName + '.config')
+
+    def _readXML(self, xmlFile):
+        import re
+        tree = None
+        self._baseName = os.path.splitext(xmlFile)[0]
         try:
-            with codecs.open(self.calibrationFile, 'r', 'gbk') as f:
+            with codecs.open(xmlFile, 'r', 'gbk') as f:
                 text = re.sub(u"[\x00-\x08\x0b-\x0c\x0e-\x1f]+", u"", f.read())
-                self.tree = ET.ElementTree(ET.fromstring(text))
+                tree = ET.ElementTree(ET.fromstring(text))
         except ET.ParseError:
-            self.build(0, lineTag='1', lTag='L', rTag='R', tTag='T')
+            pass
         finally:
-            self.readxml()
-            # self.sideinfo()
+            return tree
 
-    def build(self, level, lineTag=None, lTag=None, rTag=None, tTag=None):
-        if level == 0:
-            _ImagingProperties = ET.Element('ImagingProperties')
-            if lineTag is not None:
-                _CameraPosition = ET.SubElement(_ImagingProperties, 'CameraPosition')
-                _CameraPosition.set('line', lineTag)
-                if lTag is not None:
-                    _lphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _lphototype.set('imgtype', lTag)
-                if tTag is not None:
-                    _lphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _lphototype.set('imgtype', tTag)
-                if rTag is not None:
-                    _rphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _rphototype.set('imgtype', rTag)
-            # self.calibrationFile = 'e:/tmp_calibrationfile.config'
-            self.tree = ET.ElementTree(element=_ImagingProperties)
-        elif level == 1:
-            root = self.tree.getroot()
-            if lineTag is not None:
-                _CameraPosition = ET.SubElement(root, 'CameraPosition')
-                _CameraPosition.set('line', lineTag)
-                if lTag is not None:
-                    _lphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _lphototype.set('imgtype', lTag)
-                if tTag is not None:
-                    _lphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _lphototype.set('imgtype', tTag)
-                if rTag is not None:
-                    _rphototype = ET.SubElement(_CameraPosition, 'phototype')
-                    _rphototype.set('imgtype', rTag)
-        self.tree.write(self.calibrationFile)
-
-    
-    def sideinfo(self, createDate=None, modifyDate=None, sideName=None):
-        root = self.tree.getroot()
-        _now = util._gettime(_type='file')
-
-        if root.get('side') is None:
-            root.set('side', '无')
-        if root.get('create_date') is None:
-            root.set('create_date', _now)
-        if root.get('modify_date') is None:
-            root.set('modify_date', _now)
-        
-        if createDate is None and modifyDate is None and sideName is None:
-            return root.get('create_date'), root.get('modify_date'), root.get('side')
-        else:
-            if createDate is not None:
-                root.set('create_date', str(createDate))
-            if modifyDate is not None:
-                root.set('modify_date', str(modifyDate))
-            if sideName is not None:
-                root.set('side', str(sideName))
-            self.tree.write(self.calibrationFile)
-            
-    def carinfo(self, kind, line, side, createDate=None, modifyDate=None, modifyMode=None):
-        xCarcz = '.carcz[@cztype="' + str(kind) + '"]'
-        try:
-            _parent = self.dictPhototype['%s_%s' % (line, side)]
-        except KeyError:
-            return None, None, None
-        node = _parent.find(xCarcz)
-        if node is None: return None, None, None
-        if createDate is None and modifyDate is None and modifyMode is None:
-            return node.get('create_date'), node.get('modify_date'), node.get('modify_mode')
-        else:
-            if createDate is not None:
-                node.set('create_date', str(createDate))
-            if modifyDate is not None:
-                node.set('modify_date', str(modifyDate))
-            if modifyMode is not None:
-                node.set('modify_mode', str(modifyMode))
-            self.tree.write(self.calibrationFile)
-    
-    def _getNewCode(self, kind):
-        """
-        货车+'T'
-        """
-        _kind = kind
-        if kind[0] != 'K' and (kind[0] == 'J' and 'JSQ' in kind):
-            _kind = 'T' + kind
-        return _kind
+    def fromXML(self, xmlFile):
+        _data = dict()
+        tree = self._readXML(xmlFile)
+        for line in tree.getroot():
+            _data[line.get('line')] = dict()
+            for side in line:
+                _data[line.get('line')][side.get('imgtype')] = dict()
+                for items in side:
+                    if len(items.getchildren()) > 0:
+                        _new_cztype = dict()
+                        for item in items:
+                            _new_cztype[item.tag] = round(int(item.text))
+                        _data[line.get('line')][side.get('imgtype')][items.get('cztype')] = _new_cztype
+                    else:
+                        _data[line.get('line')][side.get('imgtype')][items.tag] = round(int(items.text))
+        self.data_source_is_json = False
+        self.data = _data
 
     def carbody(self, kind, line, side, _new=None):
-        _kind = self._getNewCode(kind)
-        xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
-        xCarcz_old = '.carcz[@cztype="' + str(kind) + '"]'
-        try:
-            _parent = self.dictPhototype['%s_%s' % (line, side)]
-        except KeyError:
-            if _new is None:
-                return -1, -1, -1, -1
-            else:
-                self.build(1, lineTag=line, lTag='L', rTag='R')
-                self.readxml()
-                _parent = self.dictPhototype['%s_%s' % (line, side)]
-        node = _parent.find(xCarcz)
-        node_old = _parent.find(xCarcz_old)
         if _new is None:
-            if node is not None: 
-                x = int(node.find('X_carbody').text)
-                y = int(node.find('Y_carbody').text)
-                width = int(node.find('width_carbody').text)
-                height = int(node.find('height_carbody').text)
-                return x, y, width, height
-            elif node_old is not None:
-                x = int(node_old.find('X_carbody').text)
-                y = int(node_old.find('Y_carbody').text)
-                width = int(node_old.find('width_carbody').text)
-                height = int(node_old.find('height_carbody').text)
-                return x, y, width, height
+            if line in self.data and side in self.data[line] and kind in self.data[line][side]:
+                return self.data[line][side][kind]
             else:
-                return -1, -1, -1, -1   # 标定中无该车型
-
+                return None
         else:
-            if node is None:
-                _new_kind = ET.SubElement(_parent, 'carcz')
-                _new_kind.set('cztype', str(_kind))
-                _new_kind.set('create_date', util._gettime(_type='file'))
-                _new_kind.set('modify_date', util._gettime(_type='file'))
-                _new_kind.set('modify_mode', 'Manual')
-                _x = ET.SubElement(_new_kind, 'X_carbody')
-                _x.text = str(_new[0])
-                _y = ET.SubElement(_new_kind, 'Y_carbody')
-                _y.text = str(_new[1])
-                #_y.set('ratio', str(self.yratio))
-                _w = ET.SubElement(_new_kind, 'width_carbody')
-                _w.text = str(_new[2])
-                _h = ET.SubElement(_new_kind, 'height_carbody')
-                _h.text = str(_new[3])
-            else:
-                node.find('X_carbody').text = str(_new[0])
-                node.find('Y_carbody').text = str(_new[1])
-                node.find('width_carbody').text = str(_new[2])
-                node.find('height_carbody').text = str(_new[3])
-                node.set('modify_mode', 'Manual')
-                node.set('modify_date', util._gettime(_type='file'))
-            self.tree.write(self.calibrationFile)
+            if line not in self.data:
+                self.data[line] = dict()
+            if side not in self.data[line]:
+                self.data[line][side] = dict()
+            if kind not in self.data[line][side]:
+                self.data[line][side][kind] = dict()
+
+            self.data[line][side][kind] = _new
 
     def axel(self, line, side, _new=None, Z=False):
+        _item = 'train_axle_xoffset'
         if Z:
-            xOffsetX = ".zx_train_axle_xoffset"
-        else:
-            xOffsetX = ".train_axle_xoffset"
-        try:
-            _line = int(line) % 2 + 1
-            _parent = self.dictPhototype['%s_%s' % (_line, side)]
-        except KeyError:
-            return 0
-        nodeOffsetX = _parent.find(xOffsetX)
+            _item = 'ztrain_axle_xoffset'
         if _new is None:
-            if nodeOffsetX is None: return 0
-            return nodeOffsetX.text
-        else:
-            if nodeOffsetX is None:
-                _newOffsetX = ET.Element(xOffsetX[1:])
-                _newOffsetX.text = str(_new)
-                _parent.insert(0, _newOffsetX)
+            if line in self.data \
+                and side in self.data[line] \
+                and _item in self.data[line][side]:
+                return self.data[line][side][_item]
             else:
-                nodeOffsetX.text = str(_new)
-            self.tree.write(self.calibrationFile)
-            
+                return None
+        else:
+            if line not in self.data:
+                self.data[line] = dict()
+            if side not in self.data[line]:
+                self.data[line][side] = dict()
+            self.data[line][side][_item] = _new
+
     def wheel(self, line, side, _new=None, Z=False):
+        _item = 'train_axle_y'
         if Z:
-            xOffsetY = ".zx_train_axle_y"
-        else:
-            xOffsetY = ".train_axle_y"
-        try:
-            _line = int(line) % 2 + 1
-            _parent = self.dictPhototype['%s_%s' % (_line, side)]
-        except KeyError:
-            return 0
-        nodeOffsetY = _parent.find(xOffsetY)
+            _item = 'ztrain_axle_y'
         if _new is None:
-            if nodeOffsetY is None: return 0
-            return nodeOffsetY.text
-        else:
-            if nodeOffsetY is None:
-                _newOffsetY = ET.Element(xOffsetY[1:])
-                _newOffsetY.text = str(_new)
-                _parent.insert(0, _newOffsetY)
+            if line in self.data and side in self.data[line] and _item in self.data[line][side]:
+                return self.data[line][side][_item]
             else:
-                nodeOffsetY.text = str(_new)
-            self.tree.write(self.calibrationFile)
-            
+                return None
+        else:
+            if line not in self.data:
+                self.data[line] = dict()
+            if side not in self.data[line]:
+                self.data[line][side] = dict()
+            self.data[line][side][_item] = _new
+    
     def rail(self, line, side, _new=None, Z=False):
+        _item = 'rail_y'
         if Z:
-            xRail = ".zx_rail_y"
-        else:
-            xRail = ".rail_y"
-        try:
-            _line = int(line) % 2 + 1
-            _parent = self.dictPhototype['%s_%s' % (_line, side)]
-        except KeyError:
-            return 0
-        nodeRail = _parent.find(xRail)
+            _item = 'zrail_y'
         if _new is None:
-            if nodeRail is None: return 0
-            return nodeRail.text
-        else:
-            if nodeRail is None:
-                _newRail = ET.Element(xRail[1:])
-                _newRail.text = str(_new)
-                _parent.insert(0, _newRail)
+            if line in self.data and side in self.data[line] and _item in self.data[line][side]:
+                return self.data[line][side][_item]
             else:
-                nodeRail.text = str(_new)
-            self.tree.write(self.calibrationFile)
+                return None
+        else:
+            if line not in self.data:
+                self.data[line] = dict()
+            if side not in self.data[line]:
+                self.data[line][side] = dict()
+            self.data[line][side][_item] = _new
 
     def outline(self, line, kind, _new=None):
-        # new = [top.y, bottom.y, pic.width]
-        xOutlineTop = ".Y_carbody"
-        xOutlineBottom = ".height_carbody"
-        xOutlineWidth = ".width_carbody"
-        _kind = self._getNewCode(kind)
-        xCarcz = '.carcz[@cztype="' + str(_kind) + '"]'
-        if _new is not None and int(_new[0]) > int(_new[1]):
-            _new[0], _new[1] = _new[1], _new[0]
+        _item_top = 'Y_carbody'
+        _item_bottom = 'X_carbody'
+        _item_w = 'width_carbody'
+        _item_h = 'height_carbody'
 
-        _line = int(line)
-        try:
-            _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
-        except KeyError:
-            _p = self.dictPhototype['%s' % (_line)]
-            _lphototype = ET.SubElement(_p, 'phototype')
-            _lphototype.set('imgtype', 'T')
-            self.tree.write(self.calibrationFile)
-            self.readxml()
-            _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
-        node = _parent.find(xCarcz)
-        if _new is None:
-            if node is not None:
-                _top = int(node.find(xOutlineTop[1:]).text)
-                _bottom = int(node.find(xOutlineBottom[1:]).text)
-                return _top, _bottom - 1 + _top
-            else:
-                return 0,0
+        if _new is not None and hasattr(_new, '__len__'):
+            if len(_new) >= 2:
+                if int(_new[0]) > int(_new[1]):
+                    _new[0], _new[1] = _new[1], _new[0]
+                if line not in self.data:
+                    self.data[line] = dict()
+                if 'T' not in self.data[line]:
+                    self.data[line]['T'] = dict()
+                if kind not in self.data[line]['T']:
+                    self.data[line]['T'][kind] = dict()
+                self.data[line]['T'][kind][_item_top] = _new[0]
+                self.data[line]['T'][kind][_item_bottom] = _new[1]
+                self.data[line]['T'][kind][_item_w] = -1
+                self.data[line]['T'][kind][_item_h] = -1
         else:
-            if node is None:
-                _new_kind = ET.SubElement(_parent, 'carcz')
-                _new_kind.set('cztype', str(_kind))
-                _top = int(_new[0])
-                _bottom = int(_new[1]) - _top + 1
-                eleH = ET.SubElement(_new_kind, 'X_carbody')
-                eleH.text = '-1'
-                eletop = ET.SubElement(_new_kind, xOutlineTop[1:])
-                eletop.text = str(_top)
-                eleW = ET.SubElement(_new_kind, xOutlineWidth[1:])
-                eleW.text = '-1'
-                elebottom = ET.SubElement(_new_kind, xOutlineBottom[1:])
-                elebottom.text = str(_bottom)
+            if line in self.data \
+                and 'T' in self.data[line] \
+                and kind in self.data[line]['T']:
+                return self.data[line]['T'][kind][_item_top], self.data[line]['T'][kind][_item_bottom]
             else:
-                _top = int(_new[0])
-                _bottom = int(_new[1]) - _top + 1
-                node.find(xOutlineTop[1:]).text = str(_top)
-                node.find(xOutlineBottom[1:]).text = str(_bottom)
-
-            self.tree.write(self.calibrationFile)
-
-    def outline2(self, line, _new=None):
-        # xOutlineTop = ".t_top"
-        # xOutlineBottom = ".t_bottom"
-        xOutlineMiddle = ".t_middle"
-        _line = int(line)
-        try:
-            _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
-        except KeyError:
-            _p = self.dictPhototype['%s' % (_line)]
-            _lphototype = ET.SubElement(_p, 'phototype')
-            _lphototype.set('imgtype', 'T')
-            self.tree.write(self.calibrationFile)
-            self.readxml()
-            _parent = self.dictPhototype['%s_%s' % (_line, 'T')]
-        # nodeTop = _parent.find(xOutlineTop)
-        # nodeBottom = _parent.find(xOutlineBottom)
-        nodeMiddle = _parent.find(xOutlineMiddle)
-        if _new is None:
-            return int(nodeMiddle.text) if nodeMiddle is not None else 0
-        else:
-            if _parent.find(xOutlineMiddle) is None:
-                _newObj = ET.Element(xOutlineMiddle[1:])
-                _newObj.text = str(_new[2])
-                _parent.insert(0, _newObj)
-            else:
-                _parent.find(xOutlineMiddle).text = str(_new[2])
-            self.tree.write(self.calibrationFile)
+                return 0, 0
 
     def oneclick(self, lst_cztype, autoCalibrationParams, line, side):
-        #print('[oneclick] params >>> ', lst_cztype, autoCalibrationParams)
-        _key = '%s_%s' % (line, side)
-        for _nCar in self.dictPhototype[_key]:
-            if _nCar.get('cztype') in lst_cztype:
-                old_x = int(_nCar.find('X_carbody').text)
-                old_y = int(_nCar.find('Y_carbody').text)
-                _nCar.find('X_carbody').text = str(old_x + autoCalibrationParams[0])
-                _nCar.find('Y_carbody').text = str(old_y + autoCalibrationParams[1])
-                _height = float(_nCar.find('height_carbody').text)
-                _width = float(_nCar.find('width_carbody').text)
-                _nCar.find('height_carbody').text = str(round(_height * autoCalibrationParams[3]))
-                _nCar.find('width_carbody').text = str(round(_width * autoCalibrationParams[2]))
-                _nCar.set('modify_mode', 'Auto')
-                _nCar.set('modify_date', util._gettime(_type='file'))
-        self.tree.write(self.calibrationFile)
+        for carz in lst_cztype:
+            self.data[line][side][carz]['X_carbody'] += autoCalibrationParams[0]
+            self.data[line][side][carz]['Y_carbody'] += autoCalibrationParams[1]
+            self.data[line][side][carz]['width_carbody'] = round(self.data[line][side][carz]['width_carbody'] * autoCalibrationParams[2])
+            self.data[line][side][carz]['height_carbody'] = round(self.data[line][side][carz]['height_carbody'] * autoCalibrationParams[3])
 
-    def readxml(self):
-        root = self.tree.getroot()
-        for _line in root:
-            self.dictPhototype[_line.get('line')] = _line
-            for _side in _line:
-                self.dictPhototype[_line.get('line') + '_' + _side.get('imgtype')] = _side
-
-        self.rebuilt_TOP()
-
-    def rebuilt_TOP(self):
-        for key in self.dictPhototype.keys():
-            if 'T' in key:
-                _parent = self.dictPhototype[key]
-                xpath = ['t_top', 't_bottom']
-                for carz in _parent:
-                    try:
-                        v = [int(carz.find(x).text) for x in xpath]
-                        for node in xpath:
-                            carz.remove(carz.find(node))
-
-                        elebottom = ET.SubElement(carz, 'X_carbody')
-                        elebottom.text = '-1'
-                        eletop = ET.SubElement(carz, 'Y_carbody')
-                        eletop.text = str(v[0])
-                        eleW = ET.SubElement(carz, 'width_carbody')
-                        eleW.text = '-1'
-                        eleH = ET.SubElement(carz, 'height_carbody')
-                        eleH.text = str(v[1] - v[0] + 1)
-                        self.tree.write(self.calibrationFile)
-                    except Exception as e:
-                        continue
-
-
+def test():
+    file1 = '/home/imsuny/data/toec/标定素材/静海/CarPositionInformation_静海 - 副本.config'
+    file2 = '/home/imsuny/PycharmProjects/marktool/CarPositionInformation_静海 - 副本.json'
+    # j = json_handle(file2)
+    j = json_handle()
+    j.fromXML(file1)
+    print(j.Data)
+    j.export2XML('/home/imsuny/PycharmProjects/marktool/test.config')
+    # j.export2JSON()
 
 def start():
-    m = Tk()
+    m = tk.Tk()
     m.title('车型标定工具')
     main(m)
     m.mainloop()
-
-def test():
-    f = '/home/sunyue/data/cpi  (复件).config'
-    if os.path.exists(f):
-        c = calibration(f)
-        c.rebuilt_TOP()
-    # c.build(1, '3', lTag='L')
 
 if __name__ == '__main__':
     start()
