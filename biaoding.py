@@ -377,9 +377,8 @@ class main():
         elif event.keycode == 58 and not self.auto_calibration_enable:
             self.auto_calibration_enable = True
 
-        if event.keycode == 22 and os.name == 'posix':
+        if event.keycode == 22 and os.name == 'posix' or event.keycode == 8 and os.name == 'nt':
             if len(self.paint['PIC_NEW_WHEEL']) > 0:
-                print(self.paint['PIC_NEW_WHEEL'][-1])
                 self.canvas.delete(self.paint['PIC_NEW_WHEEL'][-1])
                 self.paint['PIC_NEW_WHEEL'].remove(self.paint['PIC_NEW_WHEEL'][-1])
         #todo 待加入删除后加入的轴信息
