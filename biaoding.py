@@ -215,15 +215,11 @@ class main():
             for k, v in self.pic_origin_calibration_data.items():
                 self.current_pic_binary_data = self.current_pic_binary_data.replace(v.encode(), b"")
             self.save_pic_data()
-            self.load_pic_binary()
-            self.show()
 
     def remove_wheel(self):
         for l in self.pic_origin_wheel_data:
             self.current_pic_binary_data = self.current_pic_binary_data.replace(l.encode(), b"")
         self.save_pic_data()
-        self.load_pic_binary()
-        self.show()
 
     def check_data_type(self, _file_name):
         if '_ZL' in _file_name or '_ZR' in _file_name:
@@ -999,6 +995,12 @@ class main():
             r_new = {k: dt_calibration_str[k] % (v,) for k, v in dt_new_value.items()}
             for k, v in r_new.items():
                 self.current_pic_binary_data = self.current_pic_binary_data.replace(r_old[k].encode(), v.encode())
+        else:
+            r_new = {k: dt_calibration_str[k] % (v,) for k, v in dt_new_value.items()}
+            self.current_pic_binary_data += b'\xff'
+            for k, v in r_new.items():
+                self.current_pic_binary_data += v.encode()
+            self.current_pic_binary_data += b'\xff\xd9'
 
     def save_pic_data(self):
         with open(self.currentPic, 'wb') as fw:
@@ -1174,7 +1176,7 @@ class main():
             self.canvas.create_text(
                 self.canvas.bbox(self.paint['IMG'])[2]/2,
                 10,
-                text=repr(self.pic_origin_wheel_data),
+                text=repr(self.pic_origin_wheel_data)  if len(self.pic_origin_wheel_data) > 0 else "无车轴信息",
                 fill='blue'
             )
         )
@@ -1182,7 +1184,7 @@ class main():
             self.canvas.create_text(
                 self.canvas.bbox(self.paint['IMG'])[2]/2,
                 30,
-                text=repr(list(self.pic_origin_calibration_data.values())),
+                text=repr(list(self.pic_origin_calibration_data.values())) if self.pic_origin_calibration_data is not None else "无标定信息",
                 fill='blue'
             )
         )
