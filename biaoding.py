@@ -1182,7 +1182,7 @@ class main():
             self.canvas.create_text(
                 self.canvas.bbox(self.paint['IMG'])[2]/2,
                 30,
-                text=repr(self.pic_origin_calibration_data),
+                text=repr(list(self.pic_origin_calibration_data.values())),
                 fill='blue'
             )
         )
