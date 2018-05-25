@@ -144,7 +144,7 @@ class main():
             self.auto_calibration_enable = True
             self.drawMode = const.Calibration.NONE_CALIBRATION
             self.showoffset = 0, 0
-            self.drawObj = None
+            self.drawObj = const.CALIBRATION_MODE_FILE
             self.open_dir = None
             self.dirname = None
             self.step_value = 0.0625  # 统计步长
@@ -240,14 +240,21 @@ class main():
         self.canvas.place(x=0, y=0)
 
         self.rootMenu = tk.Menu(self.win)
-        self.rootMenu.add_command(label='加载标定', command=self.openCalibrationFile)
-        self.rootMenu.add_command(label='加载图片', command=self.openPictureFolder)
+        self.rootMenu.add_command(label='打开标定', command=self.openCalibrationFile)
+        self.rootMenu.add_command(label='打开文件夹', command=self.openPictureFolder)
+
+        operate_obj_menu = tk.Menu(self.rootMenu, tearoff=0)
+        self.operate_obj_menu_value = IntVar()
+        self.operate_obj_menu_value.set(1)
+        operate_obj_menu.add_radiobutton(label="图像", command=self.setCalibrationObjPic, variable=self.operate_obj_menu_value, value=2)
+        operate_obj_menu.add_radiobutton(label="标定文件", command=self.setCalibrationObjFile, variable=self.operate_obj_menu_value, value=1)
+        self.rootMenu.add_cascade(label='数据源', menu=operate_obj_menu)
 
         pic_tool_menu = tk.Menu(self.rootMenu, tearoff=0)
         pic_tool_menu.add_command(label="清除车轴", command=self.remove_wheel)
         pic_tool_menu.add_command(label="清除标定", command=self.remove_calibration)
         pic_tool_menu.add_command(label="全部更新标定", command=self.check_all_null_data)
-        self.rootMenu.add_cascade(label='图片', menu=pic_tool_menu)
+        self.rootMenu.add_cascade(label='图像操作', menu=pic_tool_menu)
 
         export_menu = tk.Menu(self.rootMenu, tearoff=0)
         export_menu.add_command(label="导出json", command=self.save2json)
@@ -280,8 +287,8 @@ class main():
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
 
-        self.btn_calibration_obj = Button(self.win, text="标定对象", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_obj)
-        self.btn_calibration_obj.place(x=self.show_size[0] / 2 + 315, y=self.show_size[1] - 55)
+        # self.btn_calibration_obj = Button(self.win, text="  标   定 ", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_obj)
+        # self.btn_calibration_obj.place(x=self.show_size[0] / 2 + 315, y=self.show_size[1] - 55)
 
 
         self.setEventBinding()
@@ -304,20 +311,17 @@ class main():
 
     def _point_to_full(self):
         if len(self.coords_zoom) > 0:
-            _point = self.coords_zoom[0]
             _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
-            _p1 = round((_point[0] - _bbox_img[0])/self.showZoomRatio)
-            _p2 = round((_point[1] - _bbox_img[1])/self.showZoomRatio)
-            self.coords_zoom.clear()
-            self.coords_zoom.append((_p1, _p2))
+            tmp = [(round((p[0]-_bbox_img[0])/self.showZoomRatio), round((p[1]-_bbox_img[1])/self.showZoomRatio)) for p in self.coords_zoom]
+            self.coords_full.clear()
+            self.coords_full = tmp
+
 
     def _point_to_zoom(self):
-        if len(self.coords_zoom) > 0:
-            _point = self.coords_zoom[0]
-            _p1 = _point[0] * self.showZoomRatio
-            _p2 = _point[1] * self.showZoomRatio
+        if len(self.coords_full) > 0:
+            tmp = [(round(p[0]*self.showZoomRatio), round(p[1]*self.showZoomRatio)) for p in self.coords_zoom]
             self.coords_zoom.clear()
-            self.coords_zoom.append((_p1, _p2))
+            self.coords_zoom = tmp
 
     def full_to_zoom(self, l_data):
         return [d*self.showZoomRatio for d in l_data]
@@ -326,30 +330,29 @@ class main():
         return [round(d/self.showZoomRatio) for d in l_data]
 
     def eCanvasMouseWheel(self, event):
-        _move = [0, 0]
         if os.name == 'nt' and event.delta > 0 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
             _move = self._zoom_to_point(event.x, event.y)
             self.show()
             self.bbox_move(-_move[0], -_move[1])
-            self.display_unsaved_rectangle()
+            self.display_unsaved_shape()
 
-        elif  os.name == 'nt' and event.delta < 0 and self.FULL_SCREEN:
+        elif os.name == 'nt' and event.delta < 0 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
             self.show()
             # self.bbox_move(-_move[0], -_move[1])
-            self.display_unsaved_rectangle()
+            self.display_unsaved_shape()
         if os.name == 'posix' and event.num == 5 and self.FULL_SCREEN:
             self.FULL_SCREEN = False
             self.show()
             # self.bbox_move(-_move[0], -_move[1])
-            self.display_unsaved_rectangle()
-        elif  os.name == 'posix' and event.num == 4 and not self.FULL_SCREEN:
+            self.display_unsaved_shape()
+        elif os.name == 'posix' and event.num == 4 and not self.FULL_SCREEN:
             self.FULL_SCREEN = True
             _move = self._zoom_to_point(event.x, event.y)
             self.show()
             self.bbox_move(-_move[0], -_move[1])
-            self.display_unsaved_rectangle()
+            self.display_unsaved_shape()
 
     def setEventBinding(self):
         self.canvas.bind('<Motion>', self.eCanvasMotion)
@@ -618,10 +621,10 @@ class main():
             return x1, y1, x2, y2
         elif mode == const.CALC_SAVE_AUTO_CALIBRATION:
             if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0) != 4:
-                self.autoCalibrationParams[0] = _bbox['X_carbody'] - self.oldCalibrationInfo['X_carbody']
-                self.autoCalibrationParams[1] = _bbox['Y_carbody'] - self.oldCalibrationInfo['Y_carbody']
-                self.autoCalibrationParams[2] = _bbox['width_carbody'] / self.oldCalibrationInfo['width_carbody']
-                self.autoCalibrationParams[3] = _bbox['height_carbody'] / self.oldCalibrationInfo['height_carbody']
+                self.autoCalibrationParams[0] = _bbox[0] - self.oldCalibrationInfo['X_carbody']
+                self.autoCalibrationParams[1] = _bbox[1] - self.oldCalibrationInfo['Y_carbody']
+                self.autoCalibrationParams[2] = _bbox[2] / self.oldCalibrationInfo['width_carbody']
+                self.autoCalibrationParams[3] = _bbox[3] / self.oldCalibrationInfo['height_carbody']
             else:
                 self.autoCalibrationParams[3] = [0, 0, 1, 1]
 
@@ -945,7 +948,10 @@ class main():
             "Crail": "\<Crail\s\=\s\-?\d+\>"
         }
         try:
-            self.pic_origin_calibration_data = {k: re.search(v, str(b_data)).group() for k, v in dt_calibration_regex.items()}
+            self.pic_origin_calibration_data = {
+                k: re.search(v, str(b_data)).group()
+                for k, v in dt_calibration_regex.items()
+            }
         except:
             self.pic_origin_calibration_data = None
 
@@ -970,6 +976,7 @@ class main():
         tmp = "<Wheel%s = %s> "
         s_wheel_data = ""
         index = 1
+        lt_new_value.sort()
         for x in lt_new_value:
             s_wheel_data += tmp % (str(index), x)
             index += 1
@@ -1063,30 +1070,50 @@ class main():
                     self.displayPicAxelCalibration()
                     self.displayPicRailCalibration()
 
-    def display_unsaved_rectangle(self):
+    def display_unsaved_shape(self):
         _bbox = self.canvas.bbox(self.paint['IMG'][0])
-        if not self.FULL_SCREEN and len(self.coords_zoom) >= 2:
-            self.cleanCanvasByType(self.paint['CAR'], self.canvas)
-            self.cleanCanvasByType(self.paint['POINT'], self.canvas)
-            _new = self.canvas.create_rectangle(
-                # self.coords[0][0] + bbox[0], self.coords[0][1] + bbox[1],
-                self.coords_zoom[0][0] + _bbox[0], self.coords_zoom[0][1] + _bbox[1],
-                self.coords_zoom[1][0] + _bbox[0], self.coords_zoom[1][1] + _bbox[1],
-                width=2,
-                outline='red'
-            )
-            self.paint['CAR'].append(_new)
-        if self.FULL_SCREEN and len(self.coords_full) >= 2:
-            self.cleanCanvasByType(self.paint['CAR'], self.canvas)
-            self.cleanCanvasByType(self.paint['POINT'], self.canvas)
+        if self.drawObj == const.CALIBRATION_MODE_FILE:
+            if self.drawMode == const.Calibration.CAR_CALIBRATION:
+                self.cleanCanvasByType(self.paint['CAR'], self.canvas)
+                self.cleanCanvasByType(self.paint['POINT'], self.canvas)
+                if not self.FULL_SCREEN:
+                    if len(self.coords_zoom) >= 2:
+                        _new = self.canvas.create_rectangle(
+                            self.coords_zoom[0][0] + _bbox[0], self.coords_zoom[0][1] + _bbox[1],
+                            self.coords_zoom[1][0] + _bbox[0], self.coords_zoom[1][1] + _bbox[1],
+                            width=2,
+                            outline='red'
+                        )
+                        self.paint['CAR'].append(_new)
+                else:
+                    if len(self.coords_zoom) >= 2:
+                        _new = self.canvas.create_rectangle(
+                            self.coords_full[0][0] + _bbox[0], self.coords_full[0][1] + _bbox[1],
+                            self.coords_full[1][0] + _bbox[0], self.coords_full[1][1] + _bbox[1],
+                            width=2,
+                            outline='red'
+                        )
+                        self.paint['CAR'].append(_new)
+        elif self.drawObj == const.CALIBRATION_MODE_PIC:
+            if self.drawMode == const.Calibration.NEW_WHEEL_CALIBRATION:
+                self.cleanCanvasByType(self.paint['PIC_NEW_WHEEL'], self.canvas)
+                self.cleanCanvasByType(self.paint['POINT'], self.canvas)
+                if not self.FULL_SCREEN:
+                    for p in self.coords_zoom:
+                        self.paint['PIC_NEW_WHEEL'].append(self.canvas.create_line(
+                            (p[0] + _bbox[0],
+                             self.show_img.size[1] + _bbox[1]),
+                            (p[0] + _bbox[0],
+                             _bbox[1]), width=2, fill='yellow'))
 
-            _new = self.canvas.create_rectangle(
-                self.coords_full[0][0] + _bbox[0], self.coords_full[0][1] + _bbox[1],
-                self.coords_full[1][0] + _bbox[0], self.coords_full[1][1] + _bbox[1],
-                width=2,
-                outline='red'
-            )
-            self.paint['CAR'].append(_new)
+                else:
+                    for p in self.coords_full:
+                        self.paint['PIC_NEW_WHEEL'].append(self.canvas.create_line(
+                            (p[0] + _bbox[0],
+                             self.show_img.size[1] + _bbox[1]),
+                            (p[0] + _bbox[0],
+                             _bbox[1]), width=2, fill='yellow'))
+
 
     def display_point(self):
         if not self.FULL_SCREEN:
@@ -1143,6 +1170,22 @@ class main():
                 ''
             )
         self.win.title(_info)
+        self.paint["TEXT"].append(
+            self.canvas.create_text(
+                self.canvas.bbox(self.paint['IMG'])[2]/2,
+                10,
+                text=repr(self.pic_origin_wheel_data),
+                fill='blue'
+            )
+        )
+        self.paint["TEXT"].append(
+            self.canvas.create_text(
+                self.canvas.bbox(self.paint['IMG'])[2]/2,
+                30,
+                text=repr(self.pic_origin_calibration_data),
+                fill='blue'
+            )
+        )
 
     def displayPicCarCalibration(self):
         self.update_title()
@@ -1157,7 +1200,7 @@ class main():
                 self.history['PIC_CAR'].append(car_id)
         else:
             x1, y1, x2, y2 = self.pic_calibration_value[:4]
-            car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
+            car_id = self.canvas.create_rectangle(x1, y1, x2+x1, y2+y1, width=2, outline='orange')
             self.paint['PIC_CAR'].append(car_id)
             self.history['PIC_CAR'].append(car_id)
 
@@ -1182,6 +1225,7 @@ class main():
             y2 = self.oldCalibrationInfo['height_carbody'] + y1
             car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
             self.paint['CAR'].append(car_id)
+            self.history['CAR'].append(car_id)
 
     def displayAxelCalibration(self):
         _side = self.currentPicInfo[2]
@@ -1192,11 +1236,10 @@ class main():
         _Z = True if self.currentPic in self.source['Z'] else False
         _offset = int(self.calibrationHelper.axel(_line, _side, Z=_Z))
         _wheel = int(self.calibrationHelper.wheel(_line, _side, Z=_Z))
-        _lst_axel = _wheelInfo[:len(_wheelInfo) - _wheelInfo.count(-1)]
         if _side == 'R':
-            _lst_axel.reverse()
-            _lst_axel = [_w - x for x in _lst_axel]
-        for _axel in _lst_axel:
+            _wheelInfo.reverse()
+            _wheelInfo = [_w - x for x in _wheelInfo]
+        for _axel in _wheelInfo:
             if not self.FULL_SCREEN:
                 axel_id = self.canvas.create_line(
                     (_axel-_offset)*self.showZoomRatio,
@@ -1414,31 +1457,40 @@ class main():
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='车厢标定')
         self.current_actived_menu = None
-
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setPicCarCalibration(self):
         self.drawMode = const.Calibration.PIC_CAR_CALIBRATION
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='车厢标定')
         self.current_actived_menu = None
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setOutlineCalibration(self):
         self.drawMode = const.Calibration.OUTLINE_CALIBRATION
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='轮廓标定')
         self.current_actived_menu = None
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setAxelCalibration(self):
         self.drawMode = const.Calibration.AXEL_CALIBRATION
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='车轴标定')
         self.current_actived_menu = None
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setRailCalibration(self):
         self.drawMode = const.Calibration.RAIL_CALIBRATION
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='铁轨标定')
         self.current_actived_menu = None
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
 
     def setNewWheelCalibration(self):
@@ -1446,30 +1498,28 @@ class main():
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='添加车轴')
         self.current_actived_menu = None
-
-    def setWheelCalibration(self):
-        self.drawMode = const.Calibration.WHEEL_CALIBRATION
-
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setNoneCalibration(self):
         self.drawMode = const.Calibration.NONE_CALIBRATION
         if self.btn_calibration_type is not None:
             self.btn_calibration_type.config(text='标定类型')
         self.current_actived_menu = None
+        self.coords_full.clear()
+        self.coords_zoom.clear()
 
     def setCalibrationObjPic(self):
         self.drawObj = const.CALIBRATION_MODE_PIC
-        if self.btn_calibration_obj is not None:
-            self.btn_calibration_obj.config(text='  图   片 ')
-        self.current_actived_menu = None
-        self.show()
+        self.coords_full.clear()
+        self.coords_zoom.clear()
+        self.display()
 
     def setCalibrationObjFile(self):
         self.drawObj = const.CALIBRATION_MODE_FILE
-        if self.btn_calibration_obj is not None:
-            self.btn_calibration_obj.config(text='  标   定 ')
-        self.current_actived_menu = None
-        self.show()
+        self.coords_full.clear()
+        self.coords_zoom.clear()
+        self.display()
 
     def eCanvasMotion(self, event):
         if len(self.paint['IMG']) == 0: return
@@ -1498,6 +1548,36 @@ class main():
                     event.x, bbox[1], event.x, bbox[3], width=2, fill='yellow', dash=(6,6)
                 )
             )
+            self.cleanCanvasByType(self.paint['TEXT'], self.canvas)
+            if not self.FULL_SCREEN:
+                self.paint["TEXT"].append(
+                    self.canvas.create_text(
+                        event.x + 40,
+                        event.y + 30,
+                        text='%s,%s\n(%s,%s)' % (
+                            str(round((event.x - self.canvas.bbox(self.paint['IMG'][0])[0]) /self.showZoomRatio)),
+                            str(round((event.y - self.canvas.bbox(self.paint['IMG'][0])[1]) /self.showZoomRatio)),
+                            str(event.x),
+                            str(event.y)
+                        ),
+                        fill='red'
+                    )
+                )
+            else:
+                self.paint["TEXT"].append(
+                    self.canvas.create_text(
+                        event.x + 100,
+                        event.y + 100,
+                        text='%s,%s\n(%s,%s)' % (
+                            str(event.x - self.canvas.bbox(self.paint['IMG'][0])[0]),
+                            str(event.y - self.canvas.bbox(self.paint['IMG'][0])[1]),
+                            str(event.x),
+                            str(event.y)
+                        ),
+                        fill='red'
+                    )
+                )
+            self.update_title()
 
     def pop_calibration_type(self):
         if self.current_actived_menu is not None:
@@ -1708,8 +1788,7 @@ class main():
             if len(_lst_axel) > 0:
                 _x_offset = 0
                 if _side == 'R':
-                    _lst_axel.reverse()
-                    _lst_axel = [_w - x for x in _lst_axel]
+                    _lst_axel = [_w - x for x in _lst_axel[::-1]]
                     if not self.FULL_SCREEN:
                         _x_offset = round(_lst_axel[0]*self.showZoomRatio) - event.x
                     else:
@@ -1774,6 +1853,32 @@ class main():
                 self.canvas.create_line(0, event.y, self.show_img.size[0], event.y, width=2, fill='blue')
             )
         elif self.drawObj == const.CALIBRATION_MODE_PIC and self.drawMode == const.Calibration.NEW_WHEEL_CALIBRATION:
+            if not self.FULL_SCREEN:
+                self.coords_zoom.append(
+                    (
+                        event.x - _bbox[0],
+                        event.y - _bbox[1]
+                    )
+                )
+                self.coords_full.append(
+                    (
+                        round((event.x - _bbox[0])/self.showZoomRatio),
+                        round((event.y - _bbox[1])/self.showZoomRatio)
+                    )
+                )
+            else:
+                self.coords_zoom.append(
+                    (
+                        round((event.x - _bbox[0]) * self.showZoomRatio),
+                        round((event.y - _bbox[1]) * self.showZoomRatio)
+                    )
+                )
+                self.coords_full.append(
+                    (
+                        event.x - _bbox[0],
+                        event.y - _bbox[1]
+                    )
+                )
             if not self.FULL_SCREEN:
                 self.paint['PIC_NEW_WHEEL'].append(self.canvas.create_line(
                     (event.x,
