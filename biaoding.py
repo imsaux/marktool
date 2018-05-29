@@ -25,6 +25,7 @@ import logging
 import inspect
 import json
 import os
+import copy
 
 FEATURE_LIST = [
     "支持 操作图片中的车轴信息、标定信息",
@@ -163,6 +164,7 @@ class main():
                 'OUTLINE': [],
                 'POINT': [],
                 'TEXT': [],
+                'TEXT_COORDS': [],
                 'IMG': [],
                 'CONSULT': [],
                 'PIC_CAR': [],
@@ -181,6 +183,7 @@ class main():
                 'OUTLINE': [],
                 'POINT': [],
                 'TEXT': [],
+                'TEXT_COORDS': [],
                 'IMG': [],
                 'CONSULT': [],
                 'PIC_CAR': [],
@@ -1172,11 +1175,12 @@ class main():
                 ''
             )
         self.win.title(_info)
+        self.cleanCanvasByType(self.paint["TEXT"], self.canvas)
         self.paint["TEXT"].append(
             self.canvas.create_text(
                 self.canvas.bbox(self.paint['IMG'])[2]/2,
                 10,
-                text=repr(self.pic_origin_wheel_data)  if len(self.pic_origin_wheel_data) > 0 else "无车轴信息",
+                text=self.format_repr_wheel()  if len(self.pic_origin_wheel_data) > 0 else "无车轴信息",
                 fill='blue'
             )
         )
@@ -1184,10 +1188,33 @@ class main():
             self.canvas.create_text(
                 self.canvas.bbox(self.paint['IMG'])[2]/2,
                 30,
-                text=repr(list(self.pic_origin_calibration_data.values())) if self.pic_origin_calibration_data is not None else "无标定信息",
+                text=self.format_repr_calibration() if self.pic_origin_calibration_data is not None else "无标定信息",
                 fill='blue'
             )
         )
+
+    def format_repr_wheel(self):
+        r = ""
+        i = 1
+        for v in self.pic_wheel_value:
+            r += "车轴" + str(i) + " : " + str(v) + "  "
+            i += 1
+        return r
+
+
+    def format_repr_calibration(self):
+        r = ""
+        r += "X：" + str(self.pic_calibration_value[0])
+        r += "  Y：" + str(self.pic_calibration_value[1])
+        r += "  W：" + str(self.pic_calibration_value[2])
+        r += "  H：" + str(self.pic_calibration_value[3])
+        r += "  车轴偏移：" + str(self.pic_calibration_value[4])
+        r += "  车轴：" + str(self.pic_calibration_value[5])
+        r += "  铁轨：" + str(self.pic_calibration_value[6])
+        return r
+
+
+
 
     def displayPicCarCalibration(self):
         self.update_title()
@@ -1234,14 +1261,14 @@ class main():
         _line = str(self.currentPicInfo[1])
         _w = self.origin_img.size[0]
         _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
-        _wheelInfo = self.pic_wheel_value
         _Z = True if self.currentPic in self.source['Z'] else False
         _offset = int(self.calibrationHelper.axel(_line, _side, Z=_Z))
         _wheel = int(self.calibrationHelper.wheel(_line, _side, Z=_Z))
+        tmp = copy.deepcopy(self.pic_wheel_value)
         if _side == 'R':
-            _wheelInfo.reverse()
-            _wheelInfo = [_w - x for x in _wheelInfo]
-        for _axel in _wheelInfo:
+            tmp.reverse()
+            tmp = [_w - x for x in tmp]
+        for _axel in tmp:
             if not self.FULL_SCREEN:
                 axel_id = self.canvas.create_line(
                     (_axel-_offset)*self.showZoomRatio,
@@ -1293,10 +1320,11 @@ class main():
         _offset = self.pic_calibration_value[5] if self.pic_calibration_value is not None else 0
         _wheel = self.pic_calibration_value[4] if self.pic_calibration_value is not None else 0
         _lst_axel = _wheelInfo[:len(_wheelInfo) - _wheelInfo.count(-1)]
+        tmp = copy.deepcopy(self.pic_wheel_value)
         if _side == 'R':
-            _lst_axel.reverse()
-            _lst_axel = [_w - x for x in _lst_axel]
-        for _axel in _lst_axel:
+            tmp.reverse()
+            tmp = [_w - x for x in tmp]
+        for _axel in tmp:
             if not self.FULL_SCREEN:
                 axel_id = self.canvas.create_line(
                     (_axel-_offset)*self.showZoomRatio,
@@ -1550,9 +1578,9 @@ class main():
                     event.x, bbox[1], event.x, bbox[3], width=2, fill='yellow', dash=(6,6)
                 )
             )
-            self.cleanCanvasByType(self.paint['TEXT'], self.canvas)
+            self.cleanCanvasByType(self.paint['TEXT_COORDS'], self.canvas)
             if not self.FULL_SCREEN:
-                self.paint["TEXT"].append(
+                self.paint["TEXT_COORDS"].append(
                     self.canvas.create_text(
                         event.x + 40,
                         event.y + 30,
@@ -1566,7 +1594,7 @@ class main():
                     )
                 )
             else:
-                self.paint["TEXT"].append(
+                self.paint["TEXT_COORDS"].append(
                     self.canvas.create_text(
                         event.x + 100,
                         event.y + 100,
