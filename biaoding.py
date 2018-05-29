@@ -1208,8 +1208,8 @@ class main():
         r += "  Y：" + str(self.pic_calibration_value[1])
         r += "  W：" + str(self.pic_calibration_value[2])
         r += "  H：" + str(self.pic_calibration_value[3])
-        r += "  车轴偏移：" + str(self.pic_calibration_value[4])
-        r += "  车轴：" + str(self.pic_calibration_value[5])
+        r += "  车轴：" + str(self.pic_calibration_value[4])
+        r += "  车轴偏移：" + str(self.pic_calibration_value[5])
         r += "  铁轨：" + str(self.pic_calibration_value[6])
         return r
 
