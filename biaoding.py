@@ -605,19 +605,22 @@ class main():
             return x, y, w, h
         elif mode == const.CALC_READ_CALIBRATION:
             _img = self.canvas.bbox(self.paint['IMG'][0])  # 图片位置
-            if _bbox is None:
-                x1 = int(self.oldCalibrationInfo['X_carbody'] * self.showZoomRatio) + _img[0]
-                y1 = int(self.oldCalibrationInfo['Y_carbody'] * self.showZoomRatio) + _img[1]
-                x2 = int((self.oldCalibrationInfo['width_carbody'] + self.oldCalibrationInfo[
-                    'X_carbody']) * self.showZoomRatio) + _img[0]
-                y2 = int((self.oldCalibrationInfo['height_carbody'] + self.oldCalibrationInfo[
-                    'Y_carbody']) * self.showZoomRatio) + _img[1]
-            else:
-                x1 = int(_bbox[0] * self.showZoomRatio) + _img[0]
-                y1 = int(_bbox[1] * self.showZoomRatio) + _img[1]
-                x2 = int((_bbox[2] + _bbox[0]) * self.showZoomRatio) + _img[0]
-                y2 = int((_bbox[3] + _bbox[1]) * self.showZoomRatio) + _img[1]
-            return x1, y1, x2, y2
+            try:
+                if _bbox is None:
+                    x1 = int(self.oldCalibrationInfo['X_carbody'] * self.showZoomRatio) + _img[0]
+                    y1 = int(self.oldCalibrationInfo['Y_carbody'] * self.showZoomRatio) + _img[1]
+                    x2 = int((self.oldCalibrationInfo['width_carbody'] + self.oldCalibrationInfo[
+                        'X_carbody']) * self.showZoomRatio) + _img[0]
+                    y2 = int((self.oldCalibrationInfo['height_carbody'] + self.oldCalibrationInfo[
+                        'Y_carbody']) * self.showZoomRatio) + _img[1]
+                else:
+                    x1 = int(_bbox[0] * self.showZoomRatio) + _img[0]
+                    y1 = int(_bbox[1] * self.showZoomRatio) + _img[1]
+                    x2 = int((_bbox[2] + _bbox[0]) * self.showZoomRatio) + _img[0]
+                    y2 = int((_bbox[3] + _bbox[1]) * self.showZoomRatio) + _img[1]
+                return x1, y1, x2, y2
+            except:
+                return 0, 0, 0, 0
         elif mode == const.CALC_SAVE_AUTO_CALIBRATION:
             if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0) != 4:
                 self.autoCalibrationParams[0] = _bbox[0] - self.oldCalibrationInfo['X_carbody']
@@ -683,7 +686,7 @@ class main():
                     self.currentPicInfo[2],
                     _new=ret)
                 self.saved.append('%s_%s_%s' % (self.currentPicInfo[1], self.currentPicInfo[2], self.currentPicInfo[0]))
-                if list(self.oldCalibrationInfo.values()).count(-1) != 4 and self.auto_calibration_enable:
+                if self.oldCalibrationInfo is not None and list(self.oldCalibrationInfo.values()).count(-1) != 4 and self.auto_calibration_enable:
                     self.calc(mode=const.CALC_SAVE_AUTO_CALIBRATION, _bbox=_new_bbox)
                     _lst = [k.split('_')[2] for k in list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))]
                     if len(_lst) > 0:
@@ -1160,21 +1163,6 @@ class main():
             self.canvas.move(specify, offX, offY)
 
     def update_title(self):
-        if self.drawObj == const.CALIBRATION_MODE_FILE:
-            _info = '(%s/%s) %s %s' % (
-                str(self.currentPicIndex + 1),
-                len(self.show_pics),
-                self.currentPic,
-                '【新增】' if list(self.oldCalibrationInfo.values()).count(-1) == 4 or list(self.oldCalibrationInfo.values()).count(0) == 4 else ''
-            )
-        else:
-            _info = '(%s/%s) %s %s' % (
-                str(self.currentPicIndex + 1),
-                len(self.show_pics),
-                self.currentPic,
-                ''
-            )
-        self.win.title(_info)
         self.cleanCanvasByType(self.paint["TEXT"], self.canvas)
         self.paint["TEXT"].append(
             self.canvas.create_text(
@@ -1192,6 +1180,32 @@ class main():
                 fill='blue'
             )
         )
+        try:
+            if self.drawObj == const.CALIBRATION_MODE_FILE:
+                _info = '(%s/%s) %s %s' % (
+                    str(self.currentPicIndex + 1),
+                    len(self.show_pics),
+                    self.currentPic,
+                    '【新增】' if list(self.oldCalibrationInfo.values()).count(-1) == 4 or list(self.oldCalibrationInfo.values()).count(0) == 4 else ''
+                )
+            else:
+                _info = '(%s/%s) %s %s' % (
+                    str(self.currentPicIndex + 1),
+                    len(self.show_pics),
+                    self.currentPic,
+                    ''
+                )
+            self.win.title(_info)
+        except:
+            _info = '(%s/%s) %s %s' % (
+                str(self.currentPicIndex + 1),
+                len(self.show_pics),
+                self.currentPic,
+                '【新增】'
+            )
+
+            self.win.title(_info)
+
 
     def format_repr_wheel(self):
         r = ""
