@@ -269,7 +269,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180605.1038')
+        about_menu.add_command(label='开发标识：r20180606.1128')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -281,7 +281,7 @@ class main():
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save_data).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+70, y=self.show_size[1]-55)
-        Label(self.win, text="版本：2.7.0.3").place(x=0, y=self.show_size[1]-50)
+        Label(self.win, text="版本：2.7.0.3 (智能货检专版)").place(x=0, y=self.show_size[1]-50)
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
