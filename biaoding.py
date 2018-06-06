@@ -209,6 +209,8 @@ class main():
             self.pic_wheel_value = []
             self.pic_origin_wheel_data = None
             self.pic_origin_calibration_data = None
+            self._group = None
+            self.is_cross_site = False
         else:
             self.clearAllCanvas()
 
@@ -622,13 +624,34 @@ class main():
             except:
                 return 0, 0, 0, 0
         elif mode == const.CALC_SAVE_AUTO_CALIBRATION:
-            if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0) != 4:
-                self.autoCalibrationParams[0] = _bbox[0] - self.oldCalibrationInfo['X_carbody']
-                self.autoCalibrationParams[1] = _bbox[1] - self.oldCalibrationInfo['Y_carbody']
-                self.autoCalibrationParams[2] = _bbox[2] / self.oldCalibrationInfo['width_carbody']
-                self.autoCalibrationParams[3] = _bbox[3] / self.oldCalibrationInfo['height_carbody']
+            if not self.is_cross_site:
+                if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0) != 4:
+                    self.autoCalibrationParams[0] = _bbox[0] - self.oldCalibrationInfo['X_carbody']
+                    self.autoCalibrationParams[1] = _bbox[1] - self.oldCalibrationInfo['Y_carbody']
+                    self.autoCalibrationParams[2] = _bbox[2] / self.oldCalibrationInfo['width_carbody']
+                    self.autoCalibrationParams[3] = _bbox[3] / self.oldCalibrationInfo['height_carbody']
+                else:
+                    self.autoCalibrationParams = [0, 0, 1, 1]
             else:
-                self.autoCalibrationParams[3] = [0, 0, 1, 1]
+                if _bbox is not None and list(self.oldCalibrationInfo.values()).count(0) != 4:
+                    _new = [
+                        _bbox[0],
+                        _bbox[1]+_bbox[3],
+                        _bbox[2],
+                        _bbox[3]
+                    ]
+                    _old = [
+                        self.oldCalibrationInfo['X_carbody'],
+                        self.oldCalibrationInfo['Y_carbody']+self.oldCalibrationInfo['height_carbody'],
+                        self.oldCalibrationInfo['width_carbody'],
+                        self.oldCalibrationInfo['height_carbody']
+                    ]
+                    self.autoCalibrationParams[0] = _new[0] / _old[0]
+                    self.autoCalibrationParams[1] = _new[1] / _old[1]
+                    self.autoCalibrationParams[2] = _new[2] / _old[2]
+                    self.autoCalibrationParams[3] = _new[3] / _old[3]
+                else:
+                    self.autoCalibrationParams = [1, 1, 1, 1]
 
     def _get_group_kinds(self):
         return list(self.imgs_group[self.group_imgs[self.currentPic]][0].keys())
@@ -688,9 +711,23 @@ class main():
                 self.saved.append('%s_%s_%s' % (self.currentPicInfo[1], self.currentPicInfo[2], self.currentPicInfo[0]))
                 if self.oldCalibrationInfo is not None and list(self.oldCalibrationInfo.values()).count(-1) != 4 and self.auto_calibration_enable:
                     self.calc(mode=const.CALC_SAVE_AUTO_CALIBRATION, _bbox=_new_bbox)
-                    _lst = [k.split('_')[2] for k in list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))]
-                    if len(_lst) > 0:
-                        self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
+                    if self.is_cross_site:
+                        _tmp = False
+                        for g in self._group:
+                            if len(set(g) & set([self.currentPicInfo[0][0]]))>0:
+                                self.calibrationHelper.oneclick(self.currentPicInfo[0], self.autoCalibrationParams, self.currentPicInfo[1],
+                                                                self.currentPicInfo[2], in_group=g)
+                                _tmp = True
+                                break
+                        if not _tmp:
+                            g = list()
+                            [g.extend(x) for x in self._group]
+                            self.calibrationHelper.oneclick(self.currentPicInfo[0], self.autoCalibrationParams, self.currentPicInfo[1],
+                                                            self.currentPicInfo[2], out_group=g)
+                    else:
+                        _lst = [k.split('_')[2] for k in list(set(_group_kinds) & set(self.saved) ^ set(_group_kinds))]
+                        if len(_lst) > 0:
+                            self.calibrationHelper.oneclick(_lst, self.autoCalibrationParams, self.currentPicInfo[1], self.currentPicInfo[2])
                     self.autoCalibrationParams = [0, 0, 1, 1]
                     self.analyzeCalibrationFile()
             _Z = True if self.currentPic in self.source['Z'] else False
@@ -758,20 +795,25 @@ class main():
                     self._file = v['file']
                     self._dir = v['path']
                     self._index = v['index']
+                    self._group = v['group']
+                    if isinstance(self._group, list) and len(self._group) > 0:
+                        self.is_cross_site = True
             else:
                 with open('biaoding.json', 'w') as _json:
                     v = dict()
                     v['file'] = _new_file if _new_file is not None else self._file
                     v['path'] = _new_path if _new_path is not None else self._dir
                     v['index'] = _new_index if _new_index is not None else self._index
+                    v['group'] = self._group if self._group is not None else []
                     json.dump(v, _json)
         else:
-            v = {'file':'', 'path':'', 'index':0}
+            v = {'file': '', 'path': '', 'index': 0, 'group': []}
             with open('biaoding.json', 'w') as _json:
                 json.dump(v, _json)
             self._file = v['file']
             self._dir = v['path']
             self._index = v['index']
+            self._group = v['group']
 
     def _load_pics(self, dir):
         self.source['G'] = []
@@ -1256,8 +1298,6 @@ class main():
             # _car = self.handleCoords(const.CAR_CALIBRATION_READ, self.canvas.bbox(self.paint['IMG'][0]))
             if _car.count(-1) != 4:  # 不为初始值
                 x1, y1, x2, y2 = _car
-                _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo['width_carbody'] * self.showZoomRatio /2)
-                _x2 = x2 - x1
                 car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
                 self.paint['CAR'].append(car_id)
                 self.history['CAR'].append(car_id)
@@ -2290,14 +2330,36 @@ class json_handle():
             else:
                 return 0, 0
 
-    def oneclick(self, lst_cztype, autoCalibrationParams, line, side):
-        for carz in lst_cztype:
-            self.data[line][side][carz]['X_carbody'] += autoCalibrationParams[0]
-            self.data[line][side][carz]['Y_carbody'] += autoCalibrationParams[1]
-            self.data[line][side][carz]['width_carbody'] = round(
-                self.data[line][side][carz]['width_carbody'] * autoCalibrationParams[2])
-            self.data[line][side][carz]['height_carbody'] = round(
-                self.data[line][side][carz]['height_carbody'] * autoCalibrationParams[3])
+    def oneclick(self, lst_cztype, autoCalibrationParams, line, side, in_group=None, out_group=None):
+        if lst_cztype is not None and isinstance(lst_cztype, list):
+            for carz in lst_cztype:
+                self.data[line][side][carz]['X_carbody'] += autoCalibrationParams[0]
+                self.data[line][side][carz]['Y_carbody'] += autoCalibrationParams[1]
+                self.data[line][side][carz]['width_carbody'] = round(
+                    self.data[line][side][carz]['width_carbody'] * autoCalibrationParams[2])
+                self.data[line][side][carz]['height_carbody'] = round(
+                    self.data[line][side][carz]['height_carbody'] * autoCalibrationParams[3])
+        if in_group is not None and out_group is None:
+            for c in self.data[line][side].keys():
+                if lst_cztype is not None and lst_cztype!=c and str(c[0]).upper() in in_group:
+                    self.data[line][side][c]['X_carbody'] = round(self.data[line][side][c]['X_carbody'] * autoCalibrationParams[0])
+                    self.data[line][side][c]['Y_carbody'] = round(self.data[line][side][c]['Y_carbody'] * autoCalibrationParams[1])
+                    self.data[line][side][c]['width_carbody'] = round(
+                        self.data[line][side][c]['width_carbody'] * autoCalibrationParams[2])
+                    self.data[line][side][c]['height_carbody'] = round(
+                        self.data[line][side][c]['height_carbody'] * autoCalibrationParams[3])
+
+        if in_group is None and out_group is not None:
+            for c in self.data[line][side].keys():
+                if str(c[0]).upper() not in out_group:
+                    self.data[line][side][c]['X_carbody'] = round(
+                        self.data[line][side][c]['X_carbody'] * autoCalibrationParams[0])
+                    self.data[line][side][c]['Y_carbody'] = round(
+                        self.data[line][side][c]['Y_carbody'] * autoCalibrationParams[1])
+                    self.data[line][side][c]['width_carbody'] = round(
+                        self.data[line][side][c]['width_carbody'] * autoCalibrationParams[2])
+                    self.data[line][side][c]['height_carbody'] = round(
+                        self.data[line][side][c]['height_carbody'] * autoCalibrationParams[3])
 
 
 def start():
