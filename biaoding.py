@@ -1038,7 +1038,7 @@ class main():
         try:
             _lst = os.path.basename(pic).split('_')
             _kind = _lst[0]
-            _line = str(int(_lst[1].split('.')[3])-1)
+            _line = str(int(_lst[1].split('.')[3]))
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
             if _lst[3][0] == 'Z':
