@@ -2129,7 +2129,7 @@ class json_handle():
 
     def export2JSON(self):
         with open(self._baseName + '.json', 'w') as fpWrite:
-            json.dump(self.data, fpWrite)
+            json.dump(self.data, fpWrite, indent=4)
 
     @property
     def Data(self):
