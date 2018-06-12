@@ -2264,9 +2264,9 @@ class json_handle():
 
     def outline(self, line, kind, _new=None):
         _item_top = 'Y_carbody'
-        _item_bottom = 'X_carbody'
+        _item_bottom = 'height_carbody'
         _item_w = 'width_carbody'
-        _item_h = 'height_carbody'
+        _item_h = 'X_carbody'
 
         if _new is not None and hasattr(_new, '__len__'):
             if len(_new) >= 2:
