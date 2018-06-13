@@ -244,6 +244,21 @@ class main():
         self.rootMenu.add_command(label='打开文件夹', command=self.openPictureFolder)
 
 
+        operation_tool = tk.Menu(self.rootMenu, tearoff=0)
+        pic_tool_menu = tk.Menu(operation_tool, tearoff=0)
+        pic_tool_menu.add_command(label="清除车轴", command=self.remove_wheel)
+        pic_tool_menu.add_command(label="清除标定", command=self.remove_calibration)
+        pic_tool_menu.add_command(label="全部更新标定", command=self.check_all_null_data)
+        operation_tool.add_cascade(label='图片操作', menu=pic_tool_menu)
+
+        export_menu = tk.Menu(operation_tool, tearoff=0)
+        export_menu.add_command(label="导出json", command=self.save2json)
+        export_menu.add_command(label="导出config", command=self.save2config)
+        operation_tool.add_cascade(label='导出', menu=export_menu)
+
+        self.rootMenu.add_cascade(label='操作', menu=operation_tool)
+
+
         setting_menu = tk.Menu(self.rootMenu, tearoff=0)
         operate_obj_menu = tk.Menu(setting_menu, tearoff=0)
         self.operate_obj_menu_value = IntVar()
@@ -262,21 +277,6 @@ class main():
         self.rootMenu.add_cascade(label='设置', menu=setting_menu)
 
 
-
-
-        operation_tool = tk.Menu(self.rootMenu, tearoff=0)
-        pic_tool_menu = tk.Menu(operation_tool, tearoff=0)
-        pic_tool_menu.add_command(label="清除车轴", command=self.remove_wheel)
-        pic_tool_menu.add_command(label="清除标定", command=self.remove_calibration)
-        pic_tool_menu.add_command(label="全部更新标定", command=self.check_all_null_data)
-        operation_tool.add_cascade(label='图片操作', menu=pic_tool_menu)
-
-        export_menu = tk.Menu(operation_tool, tearoff=0)
-        export_menu.add_command(label="导出json", command=self.save2json)
-        export_menu.add_command(label="导出config", command=self.save2config)
-        operation_tool.add_cascade(label='导出', menu=export_menu)
-
-        self.rootMenu.add_cascade(label='操作', menu=operation_tool)
 
 
         test_menu = tk.Menu(self.rootMenu, tearoff=0)
@@ -1203,25 +1203,27 @@ class main():
         )
         try:
             if self.drawObj == const.CALIBRATION_MODE_FILE:
-                _info = '(%s/%s) %s %s' % (
+                _info = '(%s/%s) %s %s 线路：%s' % (
                     str(self.currentPicIndex + 1),
                     len(self.show_pics),
-                    self.currentPic,
-                    '【新增】' if list(self.oldCalibrationInfo.values()).count(-1) == 4 or list(self.oldCalibrationInfo.values()).count(0) == 4 else ''
+                    os.path.normpath(self.currentPic),
+                    '【新增】' if list(self.oldCalibrationInfo.values()).count(-1) == 4 or list(self.oldCalibrationInfo.values()).count(0) == 4 else '',
+                    self.currentPicInfo[1]
                 )
             else:
-                _info = '(%s/%s) %s %s' % (
+                _info = '(%s/%s) %s %s 线路：%s' % (
                     str(self.currentPicIndex + 1),
                     len(self.show_pics),
-                    self.currentPic,
-                    ''
+                    os.path.normpath(self.currentPic),
+                    '',
+                    self.currentPicInfo[1]
                 )
             self.win.title(_info)
         except:
             _info = '(%s/%s) %s %s' % (
                 str(self.currentPicIndex + 1),
                 len(self.show_pics),
-                self.currentPic,
+                os.path.normpath(self.currentPic),
                 '【新增】'
             )
 
@@ -1411,7 +1413,10 @@ class main():
         self.cleanCanvasByType(self.paint['OUTLINE'], self.canvas)
         _line = str(self.currentPicInfo[1])
         _kind = str(self.currentPicInfo[0])
-        _outlines = self.calibrationHelper.outline(_line, _kind)
+        try:
+            _outlines = self.calibrationHelper.outline(_line, _kind)
+        except:
+            _outlines = [0, 0]
         for _outline in _outlines:
             if not self.FULL_SCREEN:
                 outline_id = self.canvas.create_line(
