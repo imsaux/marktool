@@ -1,11 +1,8 @@
 # -*- mode: python -*-
-
 block_cipher = None
-
-
 a = Analysis(['biaoding.py'],
-             pathex=['c:\\p363', 'C:\\Users\\sy\\PycharmProjects\\marktool'],
-             binaries=[],
+             pathex=['c:\\p365-32', 'e:\\code\\jetbrains\\pycharm\\marktool'],
+             binaries=[('C:\\Program Files (x86)\\Windows Kits\\10\\Redist\\ucrt\\DLLs\\x64', '.')],
              datas=[],
              hiddenimports=[],
              hookspath=[],
@@ -22,12 +19,12 @@ exe = EXE(pyz,
           name='biaoding',
           debug=False,
           strip=False,
-          upx=True,
+          upx=False,
           console=False )
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
                a.datas,
                strip=False,
-               upx=True,
+               upx=False,
                name='biaoding')

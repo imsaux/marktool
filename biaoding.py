@@ -209,6 +209,7 @@ class main():
             self.pic_wheel_value = []
             self.pic_origin_wheel_data = None
             self.pic_origin_calibration_data = None
+            self.is_sartas = True
         else:
             self.clearAllCanvas()
 
@@ -242,23 +243,41 @@ class main():
         self.rootMenu.add_command(label='打开标定', command=self.openCalibrationFile)
         self.rootMenu.add_command(label='打开文件夹', command=self.openPictureFolder)
 
-        operate_obj_menu = tk.Menu(self.rootMenu, tearoff=0)
+
+        setting_menu = tk.Menu(self.rootMenu, tearoff=0)
+        operate_obj_menu = tk.Menu(setting_menu, tearoff=0)
         self.operate_obj_menu_value = IntVar()
         self.operate_obj_menu_value.set(1)
         operate_obj_menu.add_radiobutton(label="图像", command=self.setCalibrationObjPic, variable=self.operate_obj_menu_value, value=2)
         operate_obj_menu.add_radiobutton(label="标定文件", command=self.setCalibrationObjFile, variable=self.operate_obj_menu_value, value=1)
-        self.rootMenu.add_cascade(label='数据源', menu=operate_obj_menu)
+        setting_menu.add_cascade(label='数据源', menu=operate_obj_menu)
 
-        pic_tool_menu = tk.Menu(self.rootMenu, tearoff=0)
+        system_type_menu = tk.Menu(setting_menu, tearoff=0)
+        self.system_type_menu_value = IntVar()
+        self.system_type_menu_value.set(2)
+        system_type_menu.add_radiobutton(label="接发列车系统", command=self.setSystemToSartas, variable=self.system_type_menu_value, value=2)
+        system_type_menu.add_radiobutton(label="智能货检系统", command=self.setSystemToZhineng, variable=self.system_type_menu_value, value=1)
+        setting_menu.add_cascade(label='目标系统', menu=system_type_menu)
+
+        self.rootMenu.add_cascade(label='设置', menu=setting_menu)
+
+
+
+
+        operation_tool = tk.Menu(self.rootMenu, tearoff=0)
+        pic_tool_menu = tk.Menu(operation_tool, tearoff=0)
         pic_tool_menu.add_command(label="清除车轴", command=self.remove_wheel)
         pic_tool_menu.add_command(label="清除标定", command=self.remove_calibration)
         pic_tool_menu.add_command(label="全部更新标定", command=self.check_all_null_data)
-        self.rootMenu.add_cascade(label='图像操作', menu=pic_tool_menu)
+        operation_tool.add_cascade(label='图片操作', menu=pic_tool_menu)
 
-        export_menu = tk.Menu(self.rootMenu, tearoff=0)
+        export_menu = tk.Menu(operation_tool, tearoff=0)
         export_menu.add_command(label="导出json", command=self.save2json)
         export_menu.add_command(label="导出config", command=self.save2config)
-        self.rootMenu.add_cascade(label='导出', menu=export_menu)
+        operation_tool.add_cascade(label='导出', menu=export_menu)
+
+        self.rootMenu.add_cascade(label='操作', menu=operation_tool)
+
 
         test_menu = tk.Menu(self.rootMenu, tearoff=0)
         test_menu.add_command(label='鼠标滚轮-向下：缩小')
@@ -269,7 +288,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180606.1128')
+        about_menu.add_command(label='开发标识：r20180613.0838')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -281,7 +300,7 @@ class main():
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save_data).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+70, y=self.show_size[1]-55)
-        Label(self.win, text="版本：2.7.0.3 (智能货检专版)").place(x=0, y=self.show_size[1]-50)
+        Label(self.win, text="版本：2.7.0.4").place(x=0, y=self.show_size[1]-50)
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
@@ -1039,6 +1058,8 @@ class main():
             _lst = os.path.basename(pic).split('_')
             _kind = _lst[0]
             _line = str(int(_lst[1].split('.')[3]))
+            if self.is_sartas:
+                _line = str(int(_line) - 1)
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
             if _lst[3][0] == 'Z':
@@ -1256,8 +1277,6 @@ class main():
             # _car = self.handleCoords(const.CAR_CALIBRATION_READ, self.canvas.bbox(self.paint['IMG'][0]))
             if _car.count(-1) != 4:  # 不为初始值
                 x1, y1, x2, y2 = _car
-                _x1 = self.show_size[0]/2 - round(self.oldCalibrationInfo['width_carbody'] * self.showZoomRatio /2)
-                _x2 = x2 - x1
                 car_id = self.canvas.create_rectangle(x1, y1, x2, y2, width=2, outline='orange')
                 self.paint['CAR'].append(car_id)
                 self.history['CAR'].append(car_id)
@@ -1276,8 +1295,14 @@ class main():
         _w = self.origin_img.size[0]
         _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
         _Z = True if self.currentPic in self.source['Z'] else False
-        _offset = int(self.calibrationHelper.axel(_line, _side, Z=_Z))
-        _wheel = int(self.calibrationHelper.wheel(_line, _side, Z=_Z))
+        try:
+            _offset = int(self.calibrationHelper.axel(_line, _side, Z=_Z))
+        except:
+            _offset = 0
+        try:
+            _wheel = int(self.calibrationHelper.wheel(_line, _side, Z=_Z))
+        except:
+            _wheel = 0
         tmp = copy.deepcopy(self.pic_wheel_value)
         if _side == 'R':
             tmp.reverse()
@@ -1414,8 +1439,10 @@ class main():
         _line = str(self.currentPicInfo[1])
         _Z = True if self.currentPic in self.source['Z'] else False
         _bbox_img = self.canvas.bbox(self.paint['IMG'][0])
-        _raily = int(self.calibrationHelper.rail(_line, _side, Z=_Z))
-        #print('getrail() = %d' % (_raily,))
+        try:
+            _raily = int(self.calibrationHelper.rail(_line, _side, Z=_Z))
+        except:
+            _raily = 0
         if _raily != -1:
             if not self.FULL_SCREEN:
                 rail_id = self.canvas.create_line(
@@ -1563,6 +1590,14 @@ class main():
         self.drawObj = const.CALIBRATION_MODE_FILE
         self.coords_full.clear()
         self.coords_zoom.clear()
+        self.display()
+
+    def setSystemToSartas(self):
+        self.is_sartas = True
+        self.display()
+
+    def setSystemToZhineng(self):
+        self.is_sartas = False
         self.display()
 
     def eCanvasMotion(self, event):
@@ -2272,6 +2307,7 @@ class json_handle():
             if len(_new) >= 2:
                 if int(_new[0]) > int(_new[1]):
                     _new[0], _new[1] = _new[1], _new[0]
+                _new[1] -= _new[0]
                 if line not in self.data:
                     self.data[line] = dict()
                 if 'T' not in self.data[line]:
@@ -2286,7 +2322,7 @@ class json_handle():
             if line in self.data \
                     and 'T' in self.data[line] \
                     and kind in self.data[line]['T']:
-                return self.data[line]['T'][kind][_item_top], self.data[line]['T'][kind][_item_bottom]
+                return self.data[line]['T'][kind][_item_top], self.data[line]['T'][kind][_item_bottom] + self.data[line]['T'][kind][_item_top]
             else:
                 return 0, 0
 
@@ -2306,7 +2342,24 @@ def start():
     main(m)
     m.mainloop()
 
+def repaire_config():
+    # 修复之前几个版本标定顶部图时的数据错误
+    _calibration_file = "E:\\data\\work\\test\\CarPositionInformation_南仓_20180612_maying.config"
+    a = json_handle()
+    a.fromXML(_calibration_file)
+    for l in a.Data.keys():
+        if "T" in a.Data[l].keys():
+            for ctype in a.Data[l]["T"].keys():
+                o = a.Data[l]["T"][ctype]
+                if o["X_carbody"] == -1 and o["width_carbody"] == -1:
+                    o["height_carbody"] -= o["Y_carbody"]
+                if o["X_carbody"] != -1 and o["Y_carbody"] != -1 and o["height_carbody"] == -1 and o["width_carbody"] == -1:
+                    o["height_carbody"] = o["X_carbody"] - o["Y_carbody"]
+                    o["X_carbody"] = -1
+
+    a.export()
+
 
 if __name__ == '__main__':
     start()
-    # test()
+    # repaire_config()
