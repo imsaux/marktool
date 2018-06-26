@@ -290,7 +290,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180613.0838')
+        about_menu.add_command(label='开发标识：r20180626.1531')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -588,13 +588,6 @@ class main():
             self.calibrationHelper.export()
         elif self.drawObj == const.CALIBRATION_MODE_PIC:
             dt_calibration_save = dict()
-            dt_calibration_save["Cleft"] = -1
-            dt_calibration_save["Ctop"] = -1
-            dt_calibration_save["Cright"] = -1
-            dt_calibration_save["Cbottom"] = -1
-            dt_calibration_save["Cwheeloffset"] = -1
-            dt_calibration_save["Cwheelcenter"] = -1
-            dt_calibration_save["Crail"] = -1
             if self.is_unsave(const.Calibration.CAR_CALIBRATION):
                 _new_bbox = self.calc(mode=const.CALC_SAVE_CALIBRATION)
                 dt_calibration_save["Cleft"] = _new_bbox[0]
@@ -689,9 +682,11 @@ class main():
             self._load_pics(dirpath)
             if self.calibrationHelper is not None:
                 self.display()
+            else:
+                self.setCalibrationObjPic()
 
     def display(self, pic=None):
-        if self.calibrationHelper is None:
+        if self.calibrationHelper is None and self.drawObj != const.CALIBRATION_MODE_PIC:
             return
         if len(self.show_pics) == 0:
             if len(self.source['G']) > 0:
@@ -1483,12 +1478,14 @@ class main():
 
     def setCalibrationObjPic(self):
         self.drawObj = const.CALIBRATION_MODE_PIC
+        self.operate_obj_menu_value.set(2)
         self.coords_full.clear()
         self.coords_zoom.clear()
         self.display()
 
     def setCalibrationObjFile(self):
         self.drawObj = const.CALIBRATION_MODE_FILE
+        self.operate_obj_menu_value.set(1)
         self.coords_full.clear()
         self.coords_zoom.clear()
         self.display()
