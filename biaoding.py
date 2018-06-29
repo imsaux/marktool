@@ -290,7 +290,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180627.1657')
+        about_menu.add_command(label='开发标识：r20180629.1051')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -483,8 +483,8 @@ class main():
                 else:
                     x1 = int(_bbox[0] * self.showZoomRatio) + _img[0]
                     y1 = int(_bbox[1] * self.showZoomRatio) + _img[1]
-                    x2 = int((_bbox[2] + _bbox[0]) * self.showZoomRatio) + _img[0]
-                    y2 = int((_bbox[3] + _bbox[1]) * self.showZoomRatio) + _img[1]
+                    x2 = int((_bbox[2]) * self.showZoomRatio) + _img[0]
+                    y2 = int((_bbox[3]) * self.showZoomRatio) + _img[1]
                 return x1, y1, x2, y2
             except:
                 return 0, 0, 0, 0
@@ -836,7 +836,10 @@ class main():
         try:
             self.pic_origin_calibration_data = dict()
             for k, v in dt_calibration_regex.items():
-                self.pic_origin_calibration_data[k] = re.search(v, str(b_data)).group()
+                try:
+                    self.pic_origin_calibration_data[k] = re.search(v, str(b_data)).group()
+                except Exception as e:
+                    pass
         except:
             self.pic_origin_calibration_data = None
 
@@ -846,26 +849,26 @@ class main():
             self.pic_calibration_value = None
         else:
             dt_calibration_value_regex = "(\-?\d+)"
-            calibration_value_data = [int(re.search(dt_calibration_value_regex, v).group()) for k, v in self.pic_origin_calibration_data.items()]
+            calibration_value_data = {k: int(re.search(dt_calibration_value_regex, v).group()) for k, v in self.pic_origin_calibration_data.items()}
             if self.currentPic in self.source["T"]:
                 self.pic_calibration_value = [
-                    calibration_value_data[4],
-                    calibration_value_data[2],
-                    calibration_value_data[5],
-                    calibration_value_data[3],
-                    calibration_value_data[0],
-                    calibration_value_data[1],
-                    calibration_value_data[6]
+                    calibration_value_data["Cleft"] if "Cleft" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Ctop"] if "Ctop" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cright"] if "Cright" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cbottom"] if "Cbottom" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cwheelcenter"] if "Cwheelcenter" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cwheeloffset"] if "Cwheeloffset" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Crail"] if "Crail" in calibration_value_data.keys() else 0
                 ]
             else:
                 self.pic_calibration_value = [
-                    calibration_value_data[4],
-                    calibration_value_data[2],
-                    calibration_value_data[5] - calibration_value_data[4],
-                    calibration_value_data[3] - calibration_value_data[2],
-                    calibration_value_data[0],
-                    calibration_value_data[1],
-                    calibration_value_data[6]
+                    calibration_value_data["Cleft"] if "Cleft" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Ctop"] if "Ctop" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cright"] if "Cright" in calibration_value_data.keys() else 0 - calibration_value_data["Cleft"] if "Cleft" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cbottom"] if "Cbottom" in calibration_value_data.keys() else 0 - calibration_value_data["Ctop"] if "Ctop" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cwheelcenter"] if "Cwheelcenter" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Cwheeloffset"] if "Cwheeloffset" in calibration_value_data.keys() else 0,
+                    calibration_value_data["Crail"] if "Crail" in calibration_value_data.keys() else 0
                 ]
 
     def generate_pic_wheel_data(self, lt_new_value):
@@ -894,7 +897,10 @@ class main():
             r_old = {k: v for k, v in self.pic_origin_calibration_data.items()}
             r_new = {k: dt_calibration_str[k] % (v,) for k, v in dt_new_value.items()}
             for k, v in r_new.items():
-                self.current_pic_binary_data = self.current_pic_binary_data.replace(r_old[k].encode(), v.encode())
+                try:
+                    self.current_pic_binary_data = self.current_pic_binary_data.replace(r_old[k].encode(), v.encode())
+                except Exception as e:
+                    self.current_pic_binary_data += r_new[k].encode()
         else:
             r_new = {k: dt_calibration_str[k] % (v,) for k, v in dt_new_value.items()}
             for k, v in r_new.items():
@@ -1604,7 +1610,14 @@ class main():
             if self.currentPic in self.source['Z']:
                 popmenu.add_command(label='  车 轴 标 定 ', command=self.setAxelCalibration)
                 popmenu.add_command(label='  铁 轨 标 定 ', command=self.setRailCalibration)
-                popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 60))
+                if self.drawObj == const.CALIBRATION_MODE_PIC:
+                    if self.pic_wheel_value == []:
+                        popmenu.add_command(label='  添 加 车 轴 ', command=self.setNewWheelCalibration)
+                    else:
+                        popmenu.add_command(label='  调 整 车 轴 ', command=self.setModifyWheelCalibration)
+                else:
+                    popmenu.add_command(label='  调 整 车 轴 ', command=self.setModifyWheelCalibration)
+                popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 80))
             if self.currentPic in self.source['T']:
                 popmenu.add_command(label='  轮 廓 标 定 ', command=self.setOutlineCalibration)
                 popmenu.post(round(self.show_size[0] / 2 + 195), round(self.show_size[1] - 40))
