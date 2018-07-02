@@ -604,10 +604,12 @@ class main():
                 _new = copy.deepcopy(self.outlines)
                 if int(_new[0]) > int(_new[1]):
                     _new[0], _new[1] = _new[1], _new[0]
-                _new[1] -= _new[0]
+                # _new[1] -= _new[0]
 
                 dt_calibration_save["Ctop"] = _new[0]
                 dt_calibration_save["Cbottom"] = _new[1]
+                dt_calibration_save["Cleft"] = -1
+                dt_calibration_save["Cright"] = -1
 
             if self.is_unsave(const.Calibration.NEW_AXEL_CALIBRATION):
                 lt_new_wheel = []
@@ -615,11 +617,8 @@ class main():
                     lt_new_wheel.append(round(self.canvas.bbox(pl)[0]/self.showZoomRatio))
                 dt_calibration_save["Cwheeloffset"] = 0
                 self.generate_pic_wheel_data(lt_new_wheel)
-
-
             self.generate_pic_calibration_data(dt_calibration_save)
             self.save_pic_data()
-
 
     def save2config(self):
         self.save_data()
@@ -1324,7 +1323,7 @@ class main():
         self.cleanCanvasByType(self.paint['PIC_OUTLINE'], self.canvas)
         try:
             _outlines = [self.pic_calibration_value[1], self.pic_calibration_value[3]]
-            _outlines[1] = _outlines[0] + _outlines[1]
+            # _outlines[1] = _outlines[0] + _outlines[1]
         except:
             _outlines = [0, 0]
         for _outline in _outlines:
@@ -2278,7 +2277,7 @@ class json_handle():
             if len(_new) >= 2:
                 if int(_new[0]) > int(_new[1]):
                     _new[0], _new[1] = _new[1], _new[0]
-                _new[1] -= _new[0]
+                # _new[1] -= _new[0]
                 if line not in self.data:
                     self.data[line] = dict()
                 if 'T' not in self.data[line]:
@@ -2293,7 +2292,7 @@ class json_handle():
             if line in self.data \
                     and 'T' in self.data[line] \
                     and kind in self.data[line]['T']:
-                return self.data[line]['T'][kind][_item_top], self.data[line]['T'][kind][_item_bottom] + self.data[line]['T'][kind][_item_top]
+                return self.data[line]['T'][kind][_item_top], self.data[line]['T'][kind][_item_bottom]
             else:
                 return 0, 0
 
