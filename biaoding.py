@@ -290,7 +290,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180702.1035')
+        about_menu.add_command(label='开发标识：r20180709.1457')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -773,7 +773,7 @@ class main():
 
     def check_null_data(self, file):
         with open(file, "ab") as fa:
-            if self.pic_calibration_value is None and self.calibrationHelper is not None:
+            if self.pic_calibration_value == [0,0,0,0,0,0,0] and self.calibrationHelper is not None:
                 xywh = self.calibrationHelper.carbody(self.currentPicInfo[0], self.currentPicInfo[1], self.currentPicInfo[2])
                 if xywh is None:
                     xywh = dict()
