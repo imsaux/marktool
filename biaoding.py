@@ -612,10 +612,11 @@ class main():
                 dt_calibration_save["Cright"] = -1
 
             if self.is_unsave(const.Calibration.NEW_AXEL_CALIBRATION):
-                lt_new_wheel = []
-                for pl in self.paint["PIC_NEW_AXEL"]:
-                    lt_new_wheel.append(round(self.canvas.bbox(pl)[0]/self.showZoomRatio))
+                # lt_new_wheel = []
+                # for pl in self.paint["PIC_NEW_AXEL"]:
+                #     lt_new_wheel.append(round(self.canvas.bbox(pl)[0]/self.showZoomRatio))
                 dt_calibration_save["Cwheeloffset"] = 0
+                lt_new_wheel = [x[0] for x in self.coords_full]
                 self.generate_pic_wheel_data(lt_new_wheel)
             self.generate_pic_calibration_data(dt_calibration_save)
             self.save_pic_data()
@@ -1903,31 +1904,61 @@ class main():
             )
         elif self.drawObj == const.CALIBRATION_MODE_PIC and self.drawMode == const.Calibration.NEW_AXEL_CALIBRATION:
             if not self.FULL_SCREEN:
-                self.coords_zoom.append(
-                    (
-                        event.x - _bbox[0],
-                        event.y - _bbox[1]
+                if self.currentPicInfo[2] == 'R':
+                    _w = self.origin_img.size[0]
+                    self.coords_zoom.append(
+                        (
+                            event.x - _bbox[0],
+                            event.y - _bbox[1]
+                        )
                     )
-                )
-                self.coords_full.append(
-                    (
-                        round((event.x - _bbox[0])/self.showZoomRatio),
-                        round((event.y - _bbox[1])/self.showZoomRatio)
+                    self.coords_full.append(
+                        (
+                            _w - (round((event.x - _bbox[0])/self.showZoomRatio)),
+                            round((event.y - _bbox[1])/self.showZoomRatio)
+                        )
                     )
-                )
+                else:
+                    self.coords_zoom.append(
+                        (
+                            event.x - _bbox[0],
+                            event.y - _bbox[1]
+                        )
+                    )
+                    self.coords_full.append(
+                        (
+                            round((event.x - _bbox[0])/self.showZoomRatio),
+                            round((event.y - _bbox[1])/self.showZoomRatio)
+                        )
+                    )
             else:
-                self.coords_zoom.append(
-                    (
-                        round((event.x - _bbox[0]) * self.showZoomRatio),
-                        round((event.y - _bbox[1]) * self.showZoomRatio)
+                if self.currentPicInfo[2] == 'R':
+                    _w = self.origin_img.size[0]
+                    self.coords_zoom.append(
+                        (
+                            _w - (round((event.x - _bbox[0]) * self.showZoomRatio)),
+                            round((event.y - _bbox[1]) * self.showZoomRatio)
+                        )
                     )
-                )
-                self.coords_full.append(
-                    (
-                        event.x - _bbox[0],
-                        event.y - _bbox[1]
+                    self.coords_full.append(
+                        (
+                            _w - (event.x - _bbox[0]),
+                            event.y - _bbox[1]
+                        )
                     )
-                )
+                else:
+                    self.coords_zoom.append(
+                        (
+                            round((event.x - _bbox[0]) * self.showZoomRatio),
+                            round((event.y - _bbox[1]) * self.showZoomRatio)
+                        )
+                    )
+                    self.coords_full.append(
+                        (
+                            event.x - _bbox[0],
+                            event.y - _bbox[1]
+                        )
+                    )
             if not self.FULL_SCREEN:
                 self.paint['PIC_NEW_AXEL'].append(self.canvas.create_line(
                     (event.x,
