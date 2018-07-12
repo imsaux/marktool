@@ -27,6 +27,9 @@ import json
 import os
 import copy
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 FEATURE_LIST = [
     "支持 操作图片中的车轴信息、标定信息",
     "支持 JSON",
@@ -290,7 +293,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180711.1101')
+        about_menu.add_command(label='开发标识：r20180712.1423')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
