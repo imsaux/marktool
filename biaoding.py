@@ -293,7 +293,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180712.1423')
+        about_menu.add_command(label='开发标识：r20180723.1343')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -2167,7 +2167,7 @@ class json_handle():
                 self._baseName = os.path.splitext(calibrationFile)[0]
 
     def export2JSON(self):
-        with open(self._baseName + '.json', 'w') as fpWrite:
+        with open('calibration.json', 'w') as fpWrite:
             json.dump(self.data, fpWrite, indent=4)
 
     @property
