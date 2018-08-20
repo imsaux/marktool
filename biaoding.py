@@ -257,8 +257,8 @@ class main():
         operation_tool.add_cascade(label='图片操作', menu=pic_tool_menu)
 
         export_menu = tk.Menu(operation_tool, tearoff=0)
-        export_menu.add_command(label="导出json", command=self.save2json)
-        export_menu.add_command(label="导出config", command=self.save2config)
+        export_menu.add_command(label="导出json", command=self.ask_export_json)
+        export_menu.add_command(label="导出config", command=self.ask_export_xml)
         operation_tool.add_cascade(label='导出', menu=export_menu)
 
         self.rootMenu.add_cascade(label='操作', menu=operation_tool)
@@ -293,7 +293,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180723.1343')
+        about_menu.add_command(label='开发标识：r20180820.0823')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -315,6 +315,14 @@ class main():
 
 
         self.setEventBinding()
+
+    def ask_export_json(self):
+        path = askdirectory(initialdir=self._dir, title='请选择存放文件夹')
+        self.calibrationHelper.export2JSON(path=path)
+
+    def ask_export_xml(self):
+        path = askdirectory(initialdir=self._dir, title='请选择存放文件夹')
+        self.calibrationHelper.export2XML(path=path)
 
     def create_group_menu(self):
         dct = self.imgs_group[self.group_imgs[self.currentPic]][0]
@@ -2166,15 +2174,19 @@ class json_handle():
                 self.data_source_is_json = True
                 self._baseName = os.path.splitext(calibrationFile)[0]
 
-    def export2JSON(self):
-        with open('calibration.json', 'w') as fpWrite:
-            json.dump(self.data, fpWrite, indent=4)
+    def export2JSON(self, path=None):
+        if path is not None:
+            with open(os.path.join(path, 'calibration.json'), 'w') as fpWrite:
+                json.dump(self.data, fpWrite, indent=4)
+        else:
+            with open('/'.join(self._baseName.split('/')[:-1]) + '/calibration.json', 'w') as fpWrite:
+                json.dump(self.data, fpWrite, indent=4)
 
     @property
     def Data(self):
         return self.data
 
-    def export2XML(self, xmlFile=None):
+    def export2XML(self, path=None, xmlFile=None):
         _ImagingProperties = ET.Element('ImagingProperties')
         for line in self.data.keys():
             _CameraPosition = ET.SubElement(_ImagingProperties, 'CameraPosition')
@@ -2201,6 +2213,8 @@ class json_handle():
         tree = ET.ElementTree(element=_ImagingProperties)
         if xmlFile is not None:
             tree.write(xmlFile)
+        elif path is not None:
+            tree.write(os.path.join(path, 'CarPositionInformation.config'))
         else:
             tree.write(self._baseName + '.config')
 
