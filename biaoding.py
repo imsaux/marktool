@@ -30,6 +30,10 @@ import copy
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+TO_DO = [
+    '图像缩放精度问题'
+]
+
 FEATURE_LIST = [
     "支持 操作图片中的车轴信息、标定信息",
     "支持 JSON",
@@ -261,6 +265,11 @@ class main():
         export_menu.add_command(label="导出config", command=self.ask_export_xml)
         operation_tool.add_cascade(label='导出', menu=export_menu)
 
+        other_menu = tk.Menu(operation_tool, tearoff=0)
+        other_menu.add_command(label="加车属性(限货车)", command=self.add_car_property)
+        other_menu.add_command(label="去车属性(限货车)", command=self.del_car_property)
+        operation_tool.add_cascade(label='其他', menu=other_menu)
+
         self.rootMenu.add_cascade(label='操作', menu=operation_tool)
 
 
@@ -293,15 +302,13 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180820.0823')
+        about_menu.add_command(label='开发标识：r20180820.1353')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
 
         self.win.config(menu=self.rootMenu)
 
-        # Button(self.win, text="导出json", width=10, relief=GROOVE, bg="yellow", command=self.save2json).place(x=self.show_size[0]/2-415, y=self.show_size[1]-55)
-        # Button(self.win, text="导出config", width=10, relief=GROOVE, bg="yellow", command=self.save2config).place(x=self.show_size[0]/2-295, y=self.show_size[1]-55)
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save_data).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+70, y=self.show_size[1]-55)
@@ -309,10 +316,6 @@ class main():
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
-
-        # self.btn_calibration_obj = Button(self.win, text="  标   定 ", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_obj)
-        # self.btn_calibration_obj.place(x=self.show_size[0] / 2 + 315, y=self.show_size[1] - 55)
-
 
         self.setEventBinding()
 
@@ -328,6 +331,12 @@ class main():
         dct = self.imgs_group[self.group_imgs[self.currentPic]][0]
         carriage_menu = tk.Menu(self.rootMenu, tearoff=0)
         self.rootMenu.add_cascade(label='智能分组', menu=carriage_menu)
+
+    def add_car_property(self):
+        self.calibrationHelper.add_car_property()
+
+    def del_car_property(self):
+        self.calibrationHelper.del_car_property()
 
     def _zoom_to_point(self, x, y):
         if len(self.paint['IMG']) > 0:
@@ -2230,6 +2239,7 @@ class json_handle():
             pass
         finally:
             return tree
+            
 
     def fromXML(self, xmlFile):
         _data = dict()
@@ -2245,7 +2255,7 @@ class json_handle():
                             _new_cztype[item.tag] = round(int(item.text))
                         _data[line.get('line')][side.get('imgtype')][items.get('cztype')] = _new_cztype
                     else:
-                        _data[line.get('line')][side.get('imgtype')][items.tag] = round(int(items.text))
+                        _data[line.get('line')][side.get('imgtype')][items.tag] = round(int(float(items.text)))
         self.data_source_is_json = False
         self.data = _data
 
@@ -2298,6 +2308,35 @@ class json_handle():
             if side not in self.data[line]:
                 self.data[line][side] = dict()
             self.data[line][side][_item] = _new
+
+    def add_car_property(self):
+        for l in self.data.keys():
+            for side in self.data[l].keys():
+                for car in self.data[l][side].keys():
+                    if isinstance(self.data[l][side][car], dict):
+                        try:
+                            if car[0] in ['C', 'P', 'N', 'X', 'G', 'B']:
+                                self.data[l][side]['T'+car] = self.data[l][side][car]
+                                del self.data[l][side][car]
+                            elif car[0] in ['W', 'U'] or car[:3] == 'JSQ':
+                                self.data[l][side]['Q'+car] = self.data[l][side][car]
+                                del self.data[l][side][car]
+                        except Exception as e:
+                            pass
+        self.export()
+
+    def del_car_property(self):
+        for l in self.data.keys():
+            for side in self.data[l].keys():
+                for car in self.data[l][side].keys():
+                    if isinstance(self.data[l][side][car], dict):
+                        if car[:2] in ['TC', 'TP', 'TN', 'TX', 'TG', 'TB']:
+                            self.data[l][side][car[1:]] = self.data[l][side][car]
+                            del self.data[l][side][car]
+                        elif car[:2] in ['QW', 'QU'] or car[:4] == 'QJSQ':
+                            self.data[l][side][car[1:]] = self.data[l][side][car]
+                            del self.data[l][side][car]
+        self.export()
 
     def rail(self, line, side, _new=None, Z=False):
         _item = 'rail_y'
