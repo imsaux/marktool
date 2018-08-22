@@ -5,7 +5,7 @@ block_cipher = None
 
 a = Analysis(['biaoding.py'],
              pathex=['D:\\code\\jetbrains\\pycharm\\marktool'],
-             binaries=[],
+             binaries=[('C:\\Program Files (x86)\\Windows Kits\\10\\Redist\\ucrt\\DLLs\\x64', '.')],
              datas=[],
              hiddenimports=[],
              hookspath=[],
