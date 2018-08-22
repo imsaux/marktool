@@ -302,7 +302,7 @@ class main():
         self.rootMenu.add_cascade(label='帮助', menu=test_menu)
 
         about_menu = tk.Menu(self.rootMenu, tearoff=0)
-        about_menu.add_command(label='开发标识：r20180820.1353')
+        about_menu.add_command(label='开发标识：r20180822.1346')
         for fl in FEATURE_LIST:
             about_menu.add_command(label=fl)
         self.rootMenu.add_cascade(label='关于', menu=about_menu)
@@ -628,8 +628,8 @@ class main():
 
                 dt_calibration_save["Ctop"] = _new[0]
                 dt_calibration_save["Cbottom"] = _new[1]
-                dt_calibration_save["Cleft"] = -1
-                dt_calibration_save["Cright"] = -1
+                dt_calibration_save["Cleft"] = 0
+                dt_calibration_save["Cright"] = 30000
 
             if self.is_unsave(const.Calibration.NEW_AXEL_CALIBRATION):
                 # lt_new_wheel = []
@@ -2373,8 +2373,8 @@ class json_handle():
                     self.data[line]['T'][kind] = dict()
                 self.data[line]['T'][kind][_item_top] = _new[0]
                 self.data[line]['T'][kind][_item_bottom] = _new[1]
-                self.data[line]['T'][kind][_item_w] = -1
-                self.data[line]['T'][kind][_item_h] = -1
+                self.data[line]['T'][kind][_item_w] = 30000
+                self.data[line]['T'][kind][_item_h] = 0
         else:
             if line in self.data \
                     and 'T' in self.data[line] \
