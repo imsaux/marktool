@@ -2080,13 +2080,17 @@ class main():
         """
         dict_frequency = dict()
         for _k in dct_group.keys():
+            i = 0
             for k, v in dct_group[_k]:
-                _id = self._getDictKey(_k, v)
+                # _id = self._getDictKey(_k, v)
+                _id = _k + '_0_' + str(i)
                 try:
                     if k in dict_frequency[_id] or v is None: continue
                     dict_frequency[_id].append(k)
                 except KeyError:
                     dict_frequency[_id] = [k, ]
+                finally:
+                    i += 1
         return dict_frequency
 
     def _getDictKey(self, _k, v):
