@@ -17,7 +17,6 @@ from xml.etree import ElementTree as ET
 import PIL.Image as pilImage
 import PIL.ImageTk as pilImgTk
 from tkinter.filedialog import *
-import tkinter.ttk as ttk
 import tkinter as tk
 import ctypes
 import re
@@ -59,13 +58,13 @@ class const:
     CALC_READ_CALIBRATION = 42
     CALC_SAVE_AUTO_CALIBRATION = 43
 
-
     if os.name == 'posix':
         KEY_CTRL = 37
         KEY_ESC = 9
     if os.name == 'nt':
         KEY_CTRL = 17
         KEY_ESC = 0
+
 
 class util:
     @staticmethod
@@ -87,6 +86,74 @@ class util:
             return t.strftime("%Y%m%d")
         else:
             return None
+
+
+class pop_set_line(tk.Toplevel):
+    def __init__(self):
+        super().__init__()
+        self.title('线路对应设置')
+        self.ui_init()
+
+    def ui_init(self):
+        row1 = tk.Frame(self)
+        row1.pack(fill=tk.X)
+        tk.Label(
+            row1,
+            text='IP地址'
+        ).pack(
+            side=tk.LEFT
+        )
+        self.ip_line = tk.StringVar()
+        self.ip = tk.Entry(
+            row1,
+            textvariable=self.ip_line,
+            width=20
+        )
+        self.ip.pack(
+            side=tk.LEFT
+        )
+
+        row2 = tk.Frame(self)
+        row2.pack(fill=tk.X)
+        tk.Label(
+            row2,
+            text='对应线路'
+        ).pack(
+            side=tk.LEFT
+        )
+        self.ip_line = tk.StringVar()
+        self.line = tk.Entry(
+            row2,
+            textvariable=self.ip_line,
+            width=20
+        )
+        self.line.pack(
+            side=tk.LEFT
+        )
+
+        row3 = tk.Frame(self)
+        row3.pack(fill=tk.X)
+        tk.Button(
+            row3,
+            text='确定',
+            command=self.ok
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            row3,
+            text='取消',
+            command=self.cancel
+        ).pack(side=tk.RIGHT)
+
+    def ok(self):
+        self.params = [
+            self.ip.get(),
+            self.line.get()
+        ]
+        self.destroy()
+
+    def cancel(self):
+        self.destroy()
+
 
 class main():
     def __init__(self, _mainobj):
@@ -218,10 +285,9 @@ class main():
             self.pic_wheel_value = []
             self.pic_origin_wheel_data = None
             self.pic_origin_calibration_data = None
-            self.is_sartas = True
+            self._line = dict()
         else:
             self.clearAllCanvas()
-
 
     def remove_calibration(self):
         if self.pic_origin_calibration_data is not None:
@@ -280,18 +346,7 @@ class main():
         operate_obj_menu.add_radiobutton(label="图像", command=self.setCalibrationObjPic, variable=self.operate_obj_menu_value, value=2)
         operate_obj_menu.add_radiobutton(label="标定文件", command=self.setCalibrationObjFile, variable=self.operate_obj_menu_value, value=1)
         setting_menu.add_cascade(label='数据源', menu=operate_obj_menu)
-
-        system_type_menu = tk.Menu(setting_menu, tearoff=0)
-        self.system_type_menu_value = IntVar()
-        self.system_type_menu_value.set(2)
-        system_type_menu.add_radiobutton(label="接发列车系统", command=self.setSystemToSartas, variable=self.system_type_menu_value, value=2)
-        system_type_menu.add_radiobutton(label="智能货检系统", command=self.setSystemToZhineng, variable=self.system_type_menu_value, value=1)
-        setting_menu.add_cascade(label='目标系统', menu=system_type_menu)
-
         self.rootMenu.add_cascade(label='设置', menu=setting_menu)
-
-
-
 
         test_menu = tk.Menu(self.rootMenu, tearoff=0)
         test_menu.add_command(label='鼠标滚轮-向下：缩小')
@@ -318,6 +373,11 @@ class main():
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
 
         self.setEventBinding()
+
+    def set_line(self):
+        pop = pop_set_line()
+
+
 
     def ask_export_json(self):
         path = askdirectory(initialdir=self._dir, title='请选择存放文件夹')
@@ -645,28 +705,31 @@ class main():
         self.save_data()
         self.calibrationHelper.export2XML()
 
-    def config(self, _new_file=None, _new_path=None, _new_index=None):
+    def config(self, _new_file=None, _new_path=None, _new_index=None, _new_line=None):
         if os.path.exists('biaoding.json'):
-            if [_new_file, _new_path, _new_index].count(None) == 3:
+            if [_new_file, _new_path, _new_index, _new_line].count(None) == 4:
                 with open('biaoding.json', 'r') as _json:
                     v = json.load(_json)
                     self._file = v['file']
                     self._dir = v['path']
                     self._index = v['index']
+                    self._line = v['line']
             else:
                 with open('biaoding.json', 'w') as _json:
                     v = dict()
                     v['file'] = _new_file if _new_file is not None else self._file
                     v['path'] = _new_path if _new_path is not None else self._dir
                     v['index'] = _new_index if _new_index is not None else self._index
+                    v['line'] = _new_line if _new_line is not None else self._line
                     json.dump(v, _json)
         else:
-            v = {'file':'', 'path':'', 'index':0}
+            v = {'file':'', 'path':'', 'index':0, 'line': {'202.202.202.2': '1', '202.202.202.3': '2'}}
             with open('biaoding.json', 'w') as _json:
                 json.dump(v, _json)
             self._file = v['file']
             self._dir = v['path']
             self._index = v['index']
+            self._line = v['line']
 
     def _load_pics(self, dir):
         self.source['G'] = []
@@ -936,9 +999,10 @@ class main():
         try:
             _lst = os.path.basename(pic).split('_')
             _kind = _lst[0]
-            _line = str(int(_lst[1].split('.')[3]))
-            if self.is_sartas:
-                _line = str(int(_line) - 1)
+            try:
+                _line = self._line[_lst[1]]
+            except Exception as e:
+                _line = _lst[1].split('.')[-1]
             if '#' in _lst[0]:
                 _kind = _lst[0].replace('#', '*')
             if _lst[3][0] == 'Z':
@@ -1540,14 +1604,6 @@ class main():
             self.display()
         else:
             self.operate_obj_menu_value.set(2)
-
-    def setSystemToSartas(self):
-        self.is_sartas = True
-        self.display()
-
-    def setSystemToZhineng(self):
-        self.is_sartas = False
-        self.display()
 
     def eCanvasMotion(self, event):
         if len(self.paint['IMG']) == 0: return
