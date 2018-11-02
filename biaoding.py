@@ -367,7 +367,7 @@ class main():
         Button(self.win, text="上一张", width=10, relief=GROOVE, bg="yellow", command=self.showLastPic).place(x=self.show_size[0]/2-175, y=self.show_size[1]-55)
         Button(self.win, text="保  存", width=10, relief=GROOVE, bg="yellow", command=self.save_data).place(x=self.show_size[0]/2-50, y=self.show_size[1]-55)
         Button(self.win, text="下一张", width=10, relief=GROOVE, bg="yellow", command=self.showNextPic).place(x=self.show_size[0]/2+70, y=self.show_size[1]-55)
-        Label(self.win, text="版本：2.7.0.4").place(x=0, y=self.show_size[1]-50)
+        Label(self.win, text="版本：2.7.0.5").place(x=0, y=self.show_size[1]-50)
 
         self.btn_calibration_type = Button(self.win, text="标定类型", width=10, relief=GROOVE, bg="yellow", command=self.pop_calibration_type)
         self.btn_calibration_type.place(x=self.show_size[0] / 2 + 195, y=self.show_size[1] - 55)
